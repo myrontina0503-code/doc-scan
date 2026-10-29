@@ -57,9 +57,10 @@ header h1{font-size:22px;margin:0;flex:1}
 #stage{position:absolute}
 #stage canvas{display:block;width:100%;height:100%}
 #stage svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-.handle{position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;touch-action:none}
-.handle::after{content:"";position:absolute;inset:14px;border-radius:50%;background:#fff;border:3px solid var(--pri);box-shadow:0 1px 4px #0008}
-#loupe{position:absolute;top:10px;width:120px;height:120px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 10px #000a;pointer-events:none;background:#000}
+.handle{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--pri),0 1px 6px #000a;pointer-events:none}
+.ehandle{position:absolute;width:36px;height:10px;margin:-5px 0 0 -18px;border-radius:5px;background:#fff;box-shadow:0 0 0 2px var(--pri),0 1px 4px #0009;pointer-events:none}
+.handle.on{border-color:#ffd54a}.ehandle.on{background:#ffd54a}
+#loupe{position:absolute;width:150px;height:150px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 12px #000c;pointer-events:none;background:#000;z-index:2}
 .tools{display:flex;justify-content:center;gap:6px;padding:10px 12px calc(env(safe-area-inset-bottom) + 12px);flex-wrap:wrap}
 .tool{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:#cfd6e4;padding:6px 10px;border-radius:10px;min-width:58px}
 .tool svg{width:24px;height:24px}
@@ -123,9 +124,12 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
       <svg id="poly"><polygon fill="rgba(76,141,255,.18)" stroke="#4c8dff" stroke-width="2.5"/></svg>
       <div class="handle" data-i="0"></div><div class="handle" data-i="1"></div>
       <div class="handle" data-i="2"></div><div class="handle" data-i="3"></div>
+      <div class="ehandle" data-e="0"></div><div class="ehandle" data-e="1"></div>
+      <div class="ehandle" data-e="2"></div><div class="ehandle" data-e="3"></div>
     </div>
-    <canvas id="loupe" width="240" height="240" class="hidden"></canvas>
+    <canvas id="loupe" width="300" height="300" class="hidden"></canvas>
   </div>
+  <div class="hint">按住角或邊中間拖曳,上方放大鏡可以對準;不用剛好點在圓點上</div>
   <div class="tools">
     <button class="tool" id="cropAuto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M9 12l2 2 4-4"/></svg>自動偵測</button>
     <button class="tool" id="cropFull"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="1"/></svg>整張照片</button>
@@ -183,7 +187,7 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const BUILD = '20261029b';
+const BUILD = '20261029c';
 const $ = s => document.querySelector(s);
 const show = (el, on = true) => el.classList.toggle('hidden', !on);
 const nextFrame = () => new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 80); });
@@ -523,7 +527,7 @@ async function openCrop(file, quad, pageIdx) {
 }
 function layoutStage() {
   if (!crop) return;
-  const wrap = $('#stageWrap').getBoundingClientRect(), pad = 24;
+  const wrap = $('#stageWrap').getBoundingClientRect(), pad = 28;
   const sw = crop.src.width, sh = crop.src.height;
   const k = Math.min((wrap.width - pad * 2) / sw, (wrap.height - pad * 2) / sh);
   const w = sw * k, h = sh * k;
@@ -535,46 +539,89 @@ function layoutStage() {
   cv2.getContext('2d').drawImage(crop.src, 0, 0, cv2.width, cv2.height);
   drawQuad();
 }
+let drag = null;   // {type:'c'|'e', i, id, sx, sy, q0}
 function drawQuad() {
   const k = view.k, q = crop.quad;
   $('#poly polygon').setAttribute('points', q.map(p => `${p.x * k},${p.y * k}`).join(' '));
   document.querySelectorAll('#stage .handle').forEach(h => {
-    const p = q[+h.dataset.i]; h.style.left = p.x * k + 'px'; h.style.top = p.y * k + 'px';
+    const i = +h.dataset.i, p = q[i];
+    h.style.left = p.x * k + 'px'; h.style.top = p.y * k + 'px';
+    h.classList.toggle('on', !!drag && drag.type === 'c' && drag.i === i);
+  });
+  document.querySelectorAll('#stage .ehandle').forEach(h => {
+    const i = +h.dataset.e, a = q[i], b = q[(i + 1) % 4];
+    h.style.left = (a.x + b.x) / 2 * k + 'px'; h.style.top = (a.y + b.y) / 2 * k + 'px';
+    h.style.transform = `rotate(${Math.atan2(b.y - a.y, b.x - a.x)}rad)`;
+    h.classList.toggle('on', !!drag && drag.type === 'e' && drag.i === i);
   });
 }
-function drawLoupe(p, i) {
-  const L = $('#loupe'), ctx = L.getContext('2d'), Z = 3;       // 放大 3 倍
-  const r = 60 / (Z * view.k);                                   // 放大鏡 CSS 寬 120px
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, L.width, L.height);
-  ctx.save(); ctx.beginPath(); ctx.arc(120, 120, 120, 0, Math.PI * 2); ctx.clip();
-  ctx.drawImage(crop.src, p.x - r, p.y - r, r * 2, r * 2, 0, 0, L.width, L.height);
-  ctx.strokeStyle = '#4c8dff'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.moveTo(120, 96); ctx.lineTo(120, 144); ctx.moveTo(96, 120); ctx.lineTo(144, 120); ctx.stroke();
+// 找手指附近的角(優先)或邊的中點,不用剛好點在圓點上
+function pickTarget(px, py) {
+  const k = view.k, q = crop.quad;
+  let c = null, cd = 1e9, e = null, ed = 1e9;
+  q.forEach((p, i) => {
+    const d = Math.hypot(p.x * k - px, p.y * k - py); if (d < cd) { cd = d; c = { type: 'c', i }; }
+    const n = q[(i + 1) % 4], m = Math.hypot((p.x + n.x) / 2 * k - px, (p.y + n.y) / 2 * k - py);
+    if (m < ed) { ed = m; e = { type: 'e', i }; }
+  });
+  if (cd <= 44) return c;
+  if (ed <= 40) return e;
+  return cd <= 70 ? c : null;
+}
+function focusPoint() {
+  const q = crop.quad;
+  if (drag.type === 'c') return q[drag.i];
+  const a = q[drag.i], b = q[(drag.i + 1) % 4];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+function drawLoupe(ev) {
+  const L = $('#loupe'), ctx = L.getContext('2d'), S = L.width, Z = 3;   // 比畫面再放大 3 倍
+  const f = focusPoint(), r = 75 / (Z * view.k), sc = S / (2 * r);          // 放大鏡 CSS 寬 150px
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, S, S);
+  ctx.save(); ctx.beginPath(); ctx.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); ctx.clip();
+  ctx.drawImage(crop.src, f.x - r, f.y - r, r * 2, r * 2, 0, 0, S, S);
+  const tp = p => [(p.x - f.x + r) * sc, (p.y - f.y + r) * sc];
+  ctx.strokeStyle = '#4c8dff'; ctx.lineWidth = 3; ctx.beginPath();
+  crop.quad.forEach((p, i) => { const [x, y] = tp(p); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  ctx.closePath(); ctx.stroke();
+  ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2; ctx.beginPath();
+  ctx.moveTo(S / 2, S / 2 - 22); ctx.lineTo(S / 2, S / 2 + 22); ctx.moveTo(S / 2 - 22, S / 2); ctx.lineTo(S / 2 + 22, S / 2); ctx.stroke();
   ctx.restore();
-  // 手指在左半邊就把放大鏡放右邊
-  const left = (i === 0 || i === 3) ? null : 10;
-  L.style.left = left === null ? '' : left + 'px';
-  L.style.right = left === null ? '10px' : '';
+  // 放大鏡跟著手指,顯示在手指上方(太靠上就改到下方)
+  const w = $('#stageWrap').getBoundingClientRect(), D = 150, fx = ev.clientX - w.left, fy = ev.clientY - w.top;
+  let top = fy - 70 - D; if (top < 6) top = fy + 70;
+  L.style.left = Math.max(6, Math.min(w.width - D - 6, fx - D / 2)) + 'px';
+  L.style.top = Math.min(w.height - D - 6, top) + 'px';
 }
-document.querySelectorAll('#stage .handle').forEach(h => {
-  h.addEventListener('pointerdown', e => {
-    e.preventDefault(); h.setPointerCapture(e.pointerId);
-    const i = +h.dataset.i, st = $('#stage').getBoundingClientRect();
-    const p0 = crop.quad[i], start = { x: e.clientX, y: e.clientY, px: p0.x, py: p0.y };
-    show($('#loupe')); drawLoupe(p0, i);
-    const move = ev => {
-      const W = crop.src.width, H = crop.src.height;
-      const nx = start.px + (ev.clientX - start.x) / view.k, ny = start.py + (ev.clientY - start.y) / view.k;
-      crop.quad[i] = { x: Math.max(0, Math.min(W, nx)), y: Math.max(0, Math.min(H, ny)) };
-      drawQuad(); drawLoupe(crop.quad[i], i);
-    };
-    const up = () => {
-      h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
-      show($('#loupe'), false);
-    };
-    h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+{
+  const wrap = $('#stageWrap');
+  wrap.addEventListener('pointerdown', e => {
+    if (!crop || drag) return;
+    const st = $('#stage').getBoundingClientRect();
+    const t = pickTarget(e.clientX - st.left, e.clientY - st.top); if (!t) return;
+    e.preventDefault(); wrap.setPointerCapture(e.pointerId);
+    drag = { ...t, id: e.pointerId, sx: e.clientX, sy: e.clientY, q0: crop.quad.map(p => ({ ...p })) };
+    show($('#loupe')); drawQuad(); drawLoupe(e);
   });
-});
+  wrap.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const k = view.k, dx = (e.clientX - drag.sx) / k, dy = (e.clientY - drag.sy) / k;
+    const W = crop.src.width, H = crop.src.height;
+    const cl = p => ({ x: Math.max(0, Math.min(W, p.x)), y: Math.max(0, Math.min(H, p.y)) });
+    if (drag.type === 'c') {
+      const p = drag.q0[drag.i]; crop.quad[drag.i] = cl({ x: p.x + dx, y: p.y + dy });
+    } else {
+      // 整條邊沿著垂直方向平移
+      const i = drag.i, j = (i + 1) % 4, a = drag.q0[i], b = drag.q0[j];
+      let nx = a.y - b.y, ny = b.x - a.x; const len = Math.hypot(nx, ny) || 1; nx /= len; ny /= len;
+      const t = dx * nx + dy * ny;
+      crop.quad[i] = cl({ x: a.x + nx * t, y: a.y + ny * t }); crop.quad[j] = cl({ x: b.x + nx * t, y: b.y + ny * t });
+    }
+    drawQuad(); drawLoupe(e);
+  });
+  const end = e => { if (!drag || e.pointerId !== drag.id) return; drag = null; show($('#loupe'), false); drawQuad(); };
+  wrap.addEventListener('pointerup', end); wrap.addEventListener('pointercancel', end);
+}
 addEventListener('resize', () => { if (!$('#crop').classList.contains('hidden')) layoutStage(); });
 $('#cropAuto').onclick = () => {
   if (cvState !== 'ready') return toast(cvState === 'loading' ? '辨識引擎還在載入,稍等幾秒' : '自動偵測無法使用,請手動拉角');
