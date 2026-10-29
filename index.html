@@ -215,7 +215,7 @@ input[type=text]:focus{outline:none;border-color:var(--pri)}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const BUILD = '20261029h';
+const BUILD = '20261029i';
 const $ = s => document.querySelector(s);
 const show = (el, on = true) => el.classList.toggle('hidden', !on);
 const nextFrame = () => new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 80); });
@@ -304,14 +304,25 @@ function detectQuad(src) {
   sm.width = Math.round(W * s); sm.height = Math.round(H * s);
   sm.getContext('2d').drawImage(src, 0, 0, sm.width, sm.height);
   let q = null;
-  if (cvState === 'ready') try { q = cvDetect(sm); } catch (e) { console.warn('cv detect', e); }
-  if (!q) try { q = jsDetect(sm); } catch (e) { console.warn('js detect', e); }
+  try {
+    const cands = [];
+    if (cvState === 'ready') try { cands.push(...cvDetect(sm)); } catch (e) { console.warn('cv detect', e); }
+    try { cands.push(...jsDetect(sm)); } catch (e) { console.warn('js detect', e); }
+    // 每個候選框都檢查四條邊底下是不是真的有紙的邊緣,有一條落在空桌面上就淘汰
+    const G = gradMap(sm);
+    let best = null;
+    for (const c of cands) {
+      const { min, mean } = edgeSupport(G, c.pts);
+      if (min < 0.35 || mean < 0.7) continue;      // 容許一小段邊被手指擋到或反光
+      const score = c.score * mean ** 4 * (0.5 + min / 2);
+      if (!best || score > best.score) best = { pts: c.pts, score };
+    }
+    if (best) q = refineQuad(G, best.pts);
+  } catch (e) { console.warn('detect', e); }
   freeCanvas(sm);
   return q && q.map(p => ({ x: p.x / s, y: p.y / s }));
 }
-// 用幾種方法各找候選框,打分數挑最好的:
-//  ① 亮度分割:白紙通常比桌面亮,不會被木紋之類的花紋干擾
-//  ② 找線條:紙跟桌面一樣亮時的備案
+// OpenCV 找候選框:亮度分割 + 找線條,灰階與「三色取最小」各做一次
 function cvDetect(c) {
   const area = c.width * c.height, mats = [], cands = [];
   const M = m => (mats.push(m), m);
@@ -337,45 +348,37 @@ function cvDetect(c) {
       collectQuads(bin, area, cv.RETR_LIST, 0.9, cands);
     }
   } finally { mats.forEach(m => m.delete()); }
-  if (!cands.length) return null;
-  cands.sort((a, b) => b.score - a.score);
-  return cands[0].pts;
+  return cands;
 }
-// 不靠 OpenCV 的找框:白紙比桌面亮 → 切出最大的亮色區塊 → 取四個最外側的點當角
-// 辨識引擎還沒下載完(或下載失敗)也能用
+// 不靠 OpenCV 的找候選框:白紙比桌面亮 → 用好幾種亮度門檻切出亮色區塊 → 取最外側的點當角
+// 門檻有低有高:紙上有陰影要低一點;燈光把旁邊桌面照亮時要高一點才分得開
 function jsDetect(c0) {
-  const s = Math.min(1, 800 / Math.max(c0.width, c0.height));
+  const s = Math.min(1, 500 / Math.max(c0.width, c0.height));
   const W = Math.round(c0.width * s), H = Math.round(c0.height * s), n = W * H;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   c.getContext('2d').drawImage(c0, 0, 0, W, H);
   const d = c.getContext('2d').getImageData(0, 0, W, H).data; freeCanvas(c);
-  let best = null;
+  const cands = [], r = Math.max(2, Math.round(Math.max(W, H) / 200));
   for (const mode of ['min', 'gray']) {
     const v = new Uint8Array(n);
     for (let i = 0, k = 0; i < n; i++, k += 4)
       v[i] = mode === 'min' ? Math.min(d[k], d[k+1], d[k+2]) : (d[k] * 77 + d[k+1] * 150 + d[k+2] * 29) >> 8;
-    // 紙上有陰影時,自動算出的亮度門檻會把暗的那半張切掉,所以也試低一點的門檻
     const t0 = otsu(v);
-    for (const f of [1, 0.8, 0.65]) {
-    const t = t0 * f;
-    let m = new Uint8Array(n);
-    for (let i = 0; i < n; i++) m[i] = v[i] > t ? 1 : 0;
-    const r = Math.max(2, Math.round(Math.max(W, H) / 200));
-    m = morph(morph(m, W, H, r, 0), W, H, r, 1);           // 先侵蝕再膨脹:切斷跟桌面亮紋的細連結
-    const comp = largestBlob(m, W, H);
-    if (!comp) continue;
-    const had = best;
-    for (const q of comp.quads) {
-      const qa = Math.abs(polyArea(q)), fill = comp.count / qa;
-      if (qa > n * 0.1 && qa < n * 0.97 && fill > 0.85 && fill < 1.1 && quadAngles(q).every(a => a > 45 && a < 135)) {
-        const score = qa * Math.pow(Math.min(fill, 1 / fill), 4);
-        if (!best || score > best.score) best = { q, score };
+    for (const f of [0.65, 0.8, 1, 1.15, 1.3, 1.45]) {
+      const t = t0 * f; if (t >= 245) continue;
+      let m = new Uint8Array(n);
+      for (let i = 0; i < n; i++) m[i] = v[i] > t ? 1 : 0;
+      m = morph(morph(m, W, H, r, 0), W, H, r, 1);         // 先侵蝕再膨脹:切斷跟桌面亮紋的細連結
+      for (const comp of blobs(m, W, H, n * 0.08)) {
+        for (const q of comp.quads) {
+          const qa = Math.abs(polyArea(q)), fill = comp.count / qa;
+          if (qa > n * 0.1 && qa < n * 0.97 && fill > 0.85 && fill < 1.1 && quadAngles(q).every(a => a > 45 && a < 135))
+            cands.push({ pts: q.map(p => ({ x: p.x / s, y: p.y / s })), score: qa / (s * s) * Math.pow(Math.min(fill, 1 / fill), 4) });
+        }
       }
     }
-    if (best !== had) break;      // 這個門檻找到了就不再放寬(放寬容易把桌面亮處也框進來)
-    }
   }
-  return best && best.q.map(p => ({ x: p.x / s, y: p.y / s }));
+  return cands;
 }
 function otsu(v) {
   const h = new Float64Array(256); for (let i = 0; i < v.length; i++) h[v[i]]++;
@@ -410,10 +413,10 @@ function morph(m, W, H, r, dilate) {
   pass(m, tmp, 0); pass(tmp, out, 1);
   return out;
 }
-// 找最大的連通亮區,回傳面積與兩組候選角(斜對角方向、上下左右方向)
-function largestBlob(m, W, H) {
-  const lab = new Int32Array(m.length), stack = new Int32Array(m.length);
-  let bestCnt = 0, bestQ = null, id = 0;
+// 找所有夠大的連通亮區,回傳面積與兩組候選角(斜對角方向、上下左右方向)
+function blobs(m, W, H, minCount) {
+  const lab = new Int32Array(m.length), stack = new Int32Array(m.length), out = [];
+  let id = 0;
   for (let s0 = 0; s0 < m.length; s0++) {
     if (!m[s0] || lab[s0]) continue;
     id++; let sp = 0, cnt = 0; stack[sp++] = s0; lab[s0] = id;
@@ -430,13 +433,79 @@ function largestBlob(m, W, H) {
       if (y > 0 && m[i-W] && !lab[i-W]) { lab[i-W] = id; stack[sp++] = i - W; }
       if (y < H - 1 && m[i+W] && !lab[i+W]) { lab[i+W] = id; stack[sp++] = i + W; }
     }
-    if (cnt > bestCnt) {
+    if (cnt >= minCount) {
       const P = k => ({ x: ex[k][1] % W, y: (ex[k][1] / W) | 0 });
-      bestCnt = cnt;
-      bestQ = [[P('a'), P('b'), P('c'), P('d')], orderPts([P('t'), P('r'), P('bo'), P('l')])];
+      out.push({ count: cnt, quads: [[P('a'), P('b'), P('c'), P('d')], orderPts([P('t'), P('r'), P('bo'), P('l')])] });
     }
   }
-  return bestQ && { count: bestCnt, quads: bestQ };
+  return out;
+}
+// 邊緣強度圖(Sobel),用來檢查框線底下有沒有紙的邊
+const EDGE = 90;
+function gradMap(c) {
+  const W = c.width, H = c.height, d = c.getContext('2d').getImageData(0, 0, W, H).data;
+  const g = new Float32Array(W * H), m = new Float32Array(W * H);
+  for (let i = 0, k = 0; i < g.length; i++, k += 4) g[i] = d[k] * 0.299 + d[k+1] * 0.587 + d[k+2] * 0.114;
+  for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+    const i = y * W + x;
+    const gx = g[i-W+1] + 2 * g[i+1] + g[i+W+1] - g[i-W-1] - 2 * g[i-1] - g[i+W-1];
+    const gy = g[i+W-1] + 2 * g[i+W] + g[i+W+1] - g[i-W-1] - 2 * g[i-W] - g[i-W+1];
+    m[i] = Math.abs(gx) + Math.abs(gy);
+  }
+  return { W, H, m };
+}
+function gAt(G, x, y) {
+  x = Math.round(x); y = Math.round(y);
+  return x < 1 || y < 1 || x >= G.W - 1 || y >= G.H - 1 ? 0 : G.m[y * G.W + x];
+}
+function sideNormal(a, b) { const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1; return { nx: -dy / L, ny: dx / L }; }
+// 四條邊各有幾成貼著邊緣,回傳最差那條與平均
+function edgeSupport(G, q) {
+  let worst = 1, sum = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = q[i], b = q[(i + 1) % 4], { nx, ny } = sideNormal(a, b), N = 40;
+    let hit = 0;
+    for (let k = 0; k < N; k++) {
+      const t = 0.08 + 0.84 * k / (N - 1), px = a.x + (b.x - a.x) * t, py = a.y + (b.y - a.y) * t;
+      for (let o = -3; o <= 3; o++) if (gAt(G, px + nx * o, py + ny * o) >= EDGE) { hit++; break; }
+    }
+    worst = Math.min(worst, hit / N); sum += hit / N;
+  }
+  return { min: worst, mean: sum / 4 };
+}
+// 貼邊微調:每條邊沿垂直方向找最強的邊緣點 → 擬合直線 → 相鄰兩線交點就是新的角
+function fitLine(pts) {
+  const n = pts.length, mx = pts.reduce((s, p) => s + p.x, 0) / n, my = pts.reduce((s, p) => s + p.y, 0) / n;
+  let sxx = 0, sxy = 0, syy = 0;
+  for (const p of pts) { const dx = p.x - mx, dy = p.y - my; sxx += dx * dx; sxy += dx * dy; syy += dy * dy; }
+  const th = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  return { px: mx, py: my, dx: Math.cos(th), dy: Math.sin(th) };
+}
+function refineQuad(G, q) {
+  const lines = [];
+  for (let i = 0; i < 4; i++) {
+    const a = q[i], b = q[(i + 1) % 4], { nx, ny } = sideNormal(a, b), pts = [], N = 60;
+    for (let k = 0; k < N; k++) {
+      const t = 0.06 + 0.88 * k / (N - 1), px = a.x + (b.x - a.x) * t, py = a.y + (b.y - a.y) * t;
+      let bv = 0, bo = 0;
+      for (let o = -10; o <= 10; o++) { const v = gAt(G, px + nx * o, py + ny * o); if (v > bv) { bv = v; bo = o; } }
+      if (bv >= EDGE) pts.push({ x: px + nx * bo, y: py + ny * bo });
+    }
+    if (pts.length < 12) { lines.push(null); continue; }
+    let L = fitLine(pts);
+    const off = p => Math.abs((p.x - L.px) * L.dy - (p.y - L.py) * L.dx);
+    const inl = pts.filter(p => off(p) < 2);
+    if (inl.length >= 10) L = fitLine(inl);
+    lines.push(L);
+  }
+  return q.map((p, i) => {
+    const A = lines[(i + 3) % 4], B = lines[i];
+    if (!A || !B) return p;
+    const det = A.dx * B.dy - A.dy * B.dx; if (Math.abs(det) < 1e-6) return p;
+    const t = ((B.px - A.px) * B.dy - (B.py - A.py) * B.dx) / det;
+    const x = { x: A.px + A.dx * t, y: A.py + A.dy * t };
+    return dist(x, p) > 25 ? p : x;
+  });
 }
 function quadAngles(p) {
   return p.map((q, i) => {
@@ -671,7 +740,15 @@ async function openCrop(file, quad, pageIdx) {
   await busy('找文件邊緣中…', async () => {
     const src = await fileToCanvas(file);
     let q = quad, found = true;
-    if (!q) { q = detectQuad(src); if (!q) { found = false; q = defaultQuad(src.width, src.height); } }
+    if (!q) {
+      q = detectQuad(src);
+      if (!q && cvState === 'loading') {        // 引擎還沒下載完:等它好了再找一次
+        $('#busyTxt').textContent = '找框引擎下載中,請稍等…';
+        for (let i = 0; i < 40 && cvState === 'loading'; i++) await new Promise(r => setTimeout(r, 500));
+        if (cvState === 'ready') q = detectQuad(src);
+      }
+      if (!q) { found = false; q = defaultQuad(src.width, src.height); }
+    }
     crop = { file, src, quad: q.map(p => ({ ...p })), pageIdx };
     auto = !quad && found;                  // 新照片有找到邊框 → 直接裁切,不用拉角
     if (auto) return;

@@ -1,5 +1,5 @@
 // 離線快取:自己的檔案用「網路優先」(有新版就拿新版),外部程式庫用「快取優先」
-const CACHE = 'doc-scan-20261029h';
+const CACHE = 'doc-scan-20261029i';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
