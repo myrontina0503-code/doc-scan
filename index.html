@@ -8,17 +8,17 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="掃描文件">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#1f6feb">
+<meta name="theme-color" content="#dde7f4">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <style>
 :root{
-  --bg:#f4f6fa; --card:#fff; --ink:#1b2333; --sub:#667085; --line:#e3e8f0;
+  --bg:#dde7f4; --card:#fff; --thumb:#c9d7ea; --ink:#1b2333; --sub:#667085; --line:#e3e8f0;
   --pri:#1f6feb; --pri-ink:#fff; --soft:#e8f0fe; --danger:#d92d20; --stage:#111418;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0f1115; --card:#1a1d24; --ink:#e8ebf1; --sub:#9aa3b2; --line:#2a2f3a;
+    --bg:#0f1115; --card:#1a1d24; --thumb:#262b35; --ink:#e8ebf1; --sub:#9aa3b2; --line:#2a2f3a;
     --pri:#4c8dff; --pri-ink:#fff; --soft:#1d2a44; --danger:#ff6b5e; --stage:#000;
   }
 }
@@ -35,8 +35,8 @@ header h1{font-size:22px;margin:0;flex:1}
 .ghost{padding:8px 12px;border-radius:10px;color:var(--sub);font-size:14px}
 .ghost:active{background:var(--line)}
 #grid{flex:1;overflow:auto;padding:4px 16px 120px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;align-content:start}
-.thumb{position:relative;background:var(--card);border-radius:12px;padding:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center}
-.thumb img{max-width:100%;max-height:100%;border-radius:4px;box-shadow:0 0 0 1px var(--line)}
+.thumb{position:relative;background:var(--thumb);border-radius:12px;padding:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center}
+.thumb img{max-width:100%;max-height:100%;border-radius:3px;box-shadow:0 1px 6px rgba(20,40,80,.25)}
 .thumb .no{position:absolute;left:6px;top:6px;background:var(--pri);color:#fff;font-size:12px;font-weight:600;border-radius:99px;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0 6px}
 .empty{grid-column:1/-1;text-align:center;color:var(--sub);padding:60px 20px;line-height:1.7}
 .empty .big{font-size:56px}
@@ -89,6 +89,8 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
 .spin{width:44px;height:44px;border-radius:50%;border:4px solid #fff4;border-top-color:#fff;animation:sp 0.8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:#222c;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:60;max-width:88vw;text-align:center;transition:opacity .3s}
+.tip{margin:0 16px 10px;padding:10px 12px;border-radius:12px;background:var(--card);font-size:13px;line-height:1.6}
+.tip b{color:var(--pri)}
 #cvStatus{font-size:12px;color:var(--sub);padding:0 16px 6px}
 </style>
 </head>
@@ -100,7 +102,8 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
     <h1>掃描文件</h1>
     <button class="ghost" id="clearBtn">清除全部</button>
   </header>
-  <div id="cvStatus">辨識引擎載入中…(第一次比較久)</div>
+  <div class="tip">📌 <b>拍照小提醒:</b>文件和背景的顏色要差很多才好自動裁切,例如<b>白紙放在深色桌面</b>上拍;四個角都要拍進畫面裡,紙盡量放平。</div>
+  <div id="cvStatus">加強版找框引擎下載中…(不影響使用,可以直接拍)</div>
   <div id="grid"></div>
   <div class="bar">
     <button class="btn" id="camBtn">📷 拍照</button>
@@ -187,7 +190,7 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const BUILD = '20261029d';
+const BUILD = '20261029g';
 const $ = s => document.querySelector(s);
 const show = (el, on = true) => el.classList.toggle('hidden', !on);
 const nextFrame = () => new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 80); });
@@ -229,7 +232,7 @@ function setCv(st) {
   cvState = st;
   const el = $('#cvStatus');
   if (st === 'ready') { el.textContent = ''; show(el, false); }
-  else if (st === 'fail') el.textContent = '自動偵測邊框無法使用(網路問題),可以手動拉四個角裁切';
+  else if (st === 'fail') el.textContent = '加強版找框引擎沒下載成功,仍可自動找框,只是複雜背景可能較不準';
 }
 
 /* ---------- 資料 ---------- */
@@ -271,13 +274,13 @@ function defaultQuad(W, H, m = 0.06) {
   return [{x:W*m,y:H*m},{x:W*(1-m),y:H*m},{x:W*(1-m),y:H*(1-m)},{x:W*m,y:H*(1-m)}];
 }
 function detectQuad(src) {
-  if (cvState !== 'ready') return null;
   const W = src.width, H = src.height, s = Math.min(1, 1000 / Math.max(W, H));
   const sm = document.createElement('canvas');
   sm.width = Math.round(W * s); sm.height = Math.round(H * s);
   sm.getContext('2d').drawImage(src, 0, 0, sm.width, sm.height);
   let q = null;
-  try { q = cvDetect(sm); } catch (e) { console.warn('detect', e); }
+  if (cvState === 'ready') try { q = cvDetect(sm); } catch (e) { console.warn('cv detect', e); }
+  if (!q) try { q = jsDetect(sm); } catch (e) { console.warn('js detect', e); }
   freeCanvas(sm);
   return q && q.map(p => ({ x: p.x / s, y: p.y / s }));
 }
@@ -312,6 +315,103 @@ function cvDetect(c) {
   if (!cands.length) return null;
   cands.sort((a, b) => b.score - a.score);
   return cands[0].pts;
+}
+// 不靠 OpenCV 的找框:白紙比桌面亮 → 切出最大的亮色區塊 → 取四個最外側的點當角
+// 辨識引擎還沒下載完(或下載失敗)也能用
+function jsDetect(c0) {
+  const s = Math.min(1, 800 / Math.max(c0.width, c0.height));
+  const W = Math.round(c0.width * s), H = Math.round(c0.height * s), n = W * H;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  c.getContext('2d').drawImage(c0, 0, 0, W, H);
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data; freeCanvas(c);
+  let best = null;
+  for (const mode of ['min', 'gray']) {
+    const v = new Uint8Array(n);
+    for (let i = 0, k = 0; i < n; i++, k += 4)
+      v[i] = mode === 'min' ? Math.min(d[k], d[k+1], d[k+2]) : (d[k] * 77 + d[k+1] * 150 + d[k+2] * 29) >> 8;
+    // 紙上有陰影時,自動算出的亮度門檻會把暗的那半張切掉,所以也試低一點的門檻
+    const t0 = otsu(v);
+    for (const f of [1, 0.8, 0.65]) {
+    const t = t0 * f;
+    let m = new Uint8Array(n);
+    for (let i = 0; i < n; i++) m[i] = v[i] > t ? 1 : 0;
+    const r = Math.max(2, Math.round(Math.max(W, H) / 200));
+    m = morph(morph(m, W, H, r, 0), W, H, r, 1);           // 先侵蝕再膨脹:切斷跟桌面亮紋的細連結
+    const comp = largestBlob(m, W, H);
+    if (!comp) continue;
+    const had = best;
+    for (const q of comp.quads) {
+      const qa = Math.abs(polyArea(q)), fill = comp.count / qa;
+      if (qa > n * 0.1 && qa < n * 0.97 && fill > 0.85 && fill < 1.1 && quadAngles(q).every(a => a > 45 && a < 135)) {
+        const score = qa * Math.pow(Math.min(fill, 1 / fill), 4);
+        if (!best || score > best.score) best = { q, score };
+      }
+    }
+    if (best !== had) break;      // 這個門檻找到了就不再放寬(放寬容易把桌面亮處也框進來)
+    }
+  }
+  return best && best.q.map(p => ({ x: p.x / s, y: p.y / s }));
+}
+function otsu(v) {
+  const h = new Float64Array(256); for (let i = 0; i < v.length; i++) h[v[i]]++;
+  let sum = 0; for (let i = 0; i < 256; i++) sum += i * h[i];
+  let wB = 0, sB = 0, best = 0, t = 127;
+  for (let i = 0; i < 256; i++) {
+    wB += h[i]; if (!wB) continue;
+    const wF = v.length - wB; if (!wF) break;
+    sB += i * h[i];
+    const mB = sB / wB, mF = (sum - sB) / wF, b = wB * wF * (mB - mF) ** 2;
+    if (b > best) { best = b; t = i; }
+  }
+  return t;
+}
+// 方形侵蝕(dilate=0)/膨脹(dilate=1),先橫後直
+function morph(m, W, H, r, dilate) {
+  const tmp = new Uint8Array(m.length), out = new Uint8Array(m.length);
+  const pass = (src, dst, along) => {
+    const L = along ? H : W, M2 = along ? W : H;
+    for (let o = 0; o < M2; o++) {
+      let cnt = 0;
+      const at = i => along ? i * W + o : o * W + i;
+      for (let i = 0; i < Math.min(r, L); i++) cnt += src[at(i)];
+      for (let i = 0; i < L; i++) {
+        if (i + r < L) cnt += src[at(i + r)];
+        if (i - r - 1 >= 0) cnt -= src[at(i - r - 1)];
+        const win = Math.min(L - 1, i + r) - Math.max(0, i - r) + 1;
+        dst[at(i)] = dilate ? (cnt > 0 ? 1 : 0) : (cnt === win ? 1 : 0);
+      }
+    }
+  };
+  pass(m, tmp, 0); pass(tmp, out, 1);
+  return out;
+}
+// 找最大的連通亮區,回傳面積與兩組候選角(斜對角方向、上下左右方向)
+function largestBlob(m, W, H) {
+  const lab = new Int32Array(m.length), stack = new Int32Array(m.length);
+  let bestCnt = 0, bestQ = null, id = 0;
+  for (let s0 = 0; s0 < m.length; s0++) {
+    if (!m[s0] || lab[s0]) continue;
+    id++; let sp = 0, cnt = 0; stack[sp++] = s0; lab[s0] = id;
+    const ex = { a: [1e9, 0], b: [-1e9, 0], c: [-1e9, 0], d: [1e9, 0], l: [1e9, 0], r: [-1e9, 0], t: [1e9, 0], bo: [-1e9, 0] };
+    while (sp) {
+      const i = stack[--sp], x = i % W, y = (i / W) | 0; cnt++;
+      const sPlus = x + y, sMinus = x - y;
+      if (sPlus < ex.a[0]) ex.a = [sPlus, i]; if (sPlus > ex.c[0]) ex.c = [sPlus, i];
+      if (sMinus > ex.b[0]) ex.b = [sMinus, i]; if (sMinus < ex.d[0]) ex.d = [sMinus, i];
+      if (x < ex.l[0]) ex.l = [x, i]; if (x > ex.r[0]) ex.r = [x, i];
+      if (y < ex.t[0]) ex.t = [y, i]; if (y > ex.bo[0]) ex.bo = [y, i];
+      if (x > 0 && m[i-1] && !lab[i-1]) { lab[i-1] = id; stack[sp++] = i - 1; }
+      if (x < W - 1 && m[i+1] && !lab[i+1]) { lab[i+1] = id; stack[sp++] = i + 1; }
+      if (y > 0 && m[i-W] && !lab[i-W]) { lab[i-W] = id; stack[sp++] = i - W; }
+      if (y < H - 1 && m[i+W] && !lab[i+W]) { lab[i+W] = id; stack[sp++] = i + W; }
+    }
+    if (cnt > bestCnt) {
+      const P = k => ({ x: ex[k][1] % W, y: (ex[k][1] / W) | 0 });
+      bestCnt = cnt;
+      bestQ = [[P('a'), P('b'), P('c'), P('d')], orderPts([P('t'), P('r'), P('bo'), P('l')])];
+    }
+  }
+  return bestQ && { count: bestCnt, quads: bestQ };
 }
 function quadAngles(p) {
   return p.map((q, i) => {
@@ -539,16 +639,20 @@ async function nextInQueue() {
 /* ---------- 裁切畫面 ---------- */
 let view = { k: 1 };
 async function openCrop(file, quad, pageIdx) {
+  let auto = false;
   await busy('找文件邊緣中…', async () => {
     const src = await fileToCanvas(file);
     let q = quad, found = true;
     if (!q) { q = detectQuad(src); if (!q) { found = false; q = defaultQuad(src.width, src.height); } }
     crop = { file, src, quad: q.map(p => ({ ...p })), pageIdx };
+    auto = !quad && found;                  // 新照片有找到邊框 → 直接裁切,不用拉角
+    if (auto) return;
     show($('#home'), false); show($('#edit'), false); show($('#crop'));
     $('#cropTitle').textContent = queue.length ? `拉四個角對齊文件(還有 ${queue.length} 張)` : '拉四個角對齊文件';
     layoutStage();
-    if (!quad && !found) toast(cvState === 'ready' ? '沒找到文件邊緣,請手動拉四個角' : '請手動拉四個角對齊文件');
+    if (!quad) toast('沒找到文件邊緣,請手動拉四個角(換深色桌面拍會比較好找)', 3500);
   });
+  if (auto) await commitCrop(true);
 }
 function layoutStage() {
   if (!crop) return;
@@ -649,7 +753,6 @@ function drawLoupe(ev) {
 }
 addEventListener('resize', () => { if (!$('#crop').classList.contains('hidden')) layoutStage(); });
 $('#cropAuto').onclick = () => {
-  if (cvState !== 'ready') return toast(cvState === 'loading' ? '辨識引擎還在載入,稍等幾秒' : '自動偵測無法使用,請手動拉角');
   const q = detectQuad(crop.src);
   if (q) { crop.quad = q; drawQuad(); } else toast('沒找到文件邊緣,請手動拉四個角');
 };
@@ -659,7 +762,8 @@ $('#cropCancel').onclick = () => {
   if (idx >= 0) openEdit(idx); else { goHome(); nextInQueue(); }
 };
 function closeCrop() { if (crop) freeCanvas(crop.src); crop = null; freeCanvas($('#stageCv')); }
-$('#cropOk').onclick = async () => {
+$('#cropOk').onclick = () => commitCrop(false);
+async function commitCrop(auto) {
   const q = orderPts(crop.quad);
   if (Math.abs(polyArea(q)) < 400) return toast('框太小了,把四個角拉開一點');
   let idx = crop.pageIdx;
@@ -672,9 +776,12 @@ $('#cropOk').onclick = async () => {
     await renderPage(p);
   });
   closeCrop();
-  if (queue.length) { renderGrid(); nextInQueue(); }
-  else openEdit(idx);
-};
+  if (queue.length) { goHome(); nextInQueue(); }
+  else {
+    openEdit(idx);
+    if (auto) toast('已自動裁切好了;邊框不準可以按「重新裁切」', 3500);
+  }
+}
 function polyArea(q) { let a = 0; for (let i = 0; i < 4; i++) { const p = q[i], n = q[(i + 1) % 4]; a += p.x * n.y - n.x * p.y; } return a / 2; }
 
 /* ---------- 單頁編輯 ---------- */
