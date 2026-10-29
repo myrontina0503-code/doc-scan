@@ -173,7 +173,7 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
       <button class="btn" id="saveBtn" disabled>💾 存到手機</button>
       <button class="btn pri" id="shareBtn" disabled>傳 LINE / 寄信</button>
     </div>
-    <div class="info">按「傳 LINE / 寄信」會跳出手機的分享選單,選 LINE 或郵件就能直接附上檔案。</div>
+    <div class="info" id="shareTip"></div>
     <div class="row"><button class="btn" id="expClose">關閉</button></div>
   </div>
 </div>
@@ -183,7 +183,7 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const BUILD = '20261029a';
+const BUILD = '20261029b';
 const $ = s => document.querySelector(s);
 const show = (el, on = true) => el.classList.toggle('hidden', !on);
 const nextFrame = () => new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 80); });
@@ -651,7 +651,7 @@ function defaultName() {
 function safeName() { return ($('#fname').value.trim() || defaultName()).replace(/[\\/:*?"<>|]/g, '_'); }
 $('#exportBtn').onclick = () => {
   $('#fname').value = defaultName();
-  show($('#exportMask')); prepare();
+  show($('#exportMask')); shareTip(); prepare();
 };
 $('#expClose').onclick = () => show($('#exportMask'), false);
 $('#exportMask').addEventListener('click', e => { if (e.target.id === 'exportMask') show($('#exportMask'), false); });
@@ -661,10 +661,18 @@ for (const [seg, key] of [['#fmtSeg', 'fmt'], ['#sizeSeg', 'size']]) {
     exp[key] = b.dataset.v;
     $(seg).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
     show($('#sizeBox'), exp.fmt === 'pdf');
-    prepare();
+    shareTip(); prepare();
   });
 }
 $('#fname').addEventListener('input', () => { clearTimeout(exp.nt); exp.nt = setTimeout(prepare, 400); });
+
+// iPhone 分享選單收到網頁給的 PDF 時不會列出 LINE(LINE 只接照片),所以 PDF 要繞道「檔案」
+function shareTip() {
+  $('#shareTip').innerHTML = exp.fmt === 'pdf'
+    ? '<b>PDF 傳 LINE:</b>分享選單裡通常沒有 LINE。請在選單選「儲存到檔案」,再到 LINE 聊天室按「+」→「檔案」選這份 PDF。<br><b>寄信:</b>選單裡選「郵件」就會自動附上。<br>想直接傳 LINE,可以改選上面的 <b>JPG</b>。'
+    : '按「傳 LINE / 寄信」會跳出分享選單,選 LINE 或郵件就能直接傳圖片。';
+  $('#shareBtn').textContent = exp.fmt === 'pdf' ? '寄信 / 存檔案' : '傳 LINE / 寄信';
+}
 
 // 先把檔案做好,按「分享」時才能立刻叫出分享選單(iPhone 要求要在點擊當下)
 async function prepare() {
