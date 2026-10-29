@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>掃描文件</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="掃描文件">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1f6feb">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+:root{
+  --bg:#f4f6fa; --card:#fff; --ink:#1b2333; --sub:#667085; --line:#e3e8f0;
+  --pri:#1f6feb; --pri-ink:#fff; --soft:#e8f0fe; --danger:#d92d20; --stage:#111418;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --card:#1a1d24; --ink:#e8ebf1; --sub:#9aa3b2; --line:#2a2f3a;
+    --pri:#4c8dff; --pri-ink:#fff; --soft:#1d2a44; --danger:#ff6b5e; --stage:#000;
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;font-size:16px}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+.hidden{display:none!important}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column}
+
+/* Home */
+header{padding:calc(env(safe-area-inset-top) + 14px) 16px 10px;display:flex;align-items:center;gap:10px}
+header h1{font-size:22px;margin:0;flex:1}
+.ghost{padding:8px 12px;border-radius:10px;color:var(--sub);font-size:14px}
+.ghost:active{background:var(--line)}
+#grid{flex:1;overflow:auto;padding:4px 16px 120px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;align-content:start}
+.thumb{position:relative;background:var(--card);border-radius:12px;padding:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center}
+.thumb img{max-width:100%;max-height:100%;border-radius:4px;box-shadow:0 0 0 1px var(--line)}
+.thumb .no{position:absolute;left:6px;top:6px;background:var(--pri);color:#fff;font-size:12px;font-weight:600;border-radius:99px;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.empty{grid-column:1/-1;text-align:center;color:var(--sub);padding:60px 20px;line-height:1.7}
+.empty .big{font-size:56px}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);display:flex;gap:10px;background:linear-gradient(transparent,var(--bg) 30%)}
+.btn{flex:1;height:52px;border-radius:14px;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.1);font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn.pri{background:var(--pri);color:var(--pri-ink)}
+.btn:disabled{opacity:.45}
+.btn:active{transform:scale(.98)}
+
+/* Crop + page editor (dark stage) */
+.dark{background:var(--stage);color:#fff}
+.dark .top{padding:calc(env(safe-area-inset-top) + 10px) 12px 8px;display:flex;align-items:center;gap:8px}
+.dark .top .t{flex:1;text-align:center;font-weight:600}
+.dark .tbtn{padding:8px 12px;border-radius:10px;color:#cfd6e4;font-size:15px}
+.dark .tbtn.go{color:#fff;background:var(--pri);font-weight:600}
+.dark .tbtn:active{background:#ffffff22}
+.stageWrap{flex:1;position:relative;overflow:hidden;touch-action:none}
+#stage{position:absolute}
+#stage canvas{display:block;width:100%;height:100%}
+#stage svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.handle{position:absolute;width:48px;height:48px;margin:-24px 0 0 -24px;touch-action:none}
+.handle::after{content:"";position:absolute;inset:14px;border-radius:50%;background:#fff;border:3px solid var(--pri);box-shadow:0 1px 4px #0008}
+#loupe{position:absolute;top:10px;width:120px;height:120px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 10px #000a;pointer-events:none;background:#000}
+.tools{display:flex;justify-content:center;gap:6px;padding:10px 12px calc(env(safe-area-inset-bottom) + 12px);flex-wrap:wrap}
+.tool{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:#cfd6e4;padding:6px 10px;border-radius:10px;min-width:58px}
+.tool svg{width:24px;height:24px}
+.tool:active{background:#ffffff22}
+.tool.danger{color:#ff8a80}
+.chips{display:flex;gap:8px;justify-content:center;padding:8px 12px 0;flex-wrap:wrap}
+.chip{padding:8px 14px;border-radius:99px;background:#ffffff1a;color:#e6eaf2;font-size:14px}
+.chip.on{background:#fff;color:#111}
+.preview{flex:1;display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden}
+.preview img{max-width:100%;max-height:100%;box-shadow:0 2px 16px #0009}
+.hint{text-align:center;color:#9aa3b2;font-size:13px;padding:0 16px}
+
+/* Sheet */
+.mask{position:fixed;inset:0;background:#0007;display:flex;align-items:flex-end;z-index:20}
+.sheet{width:100%;background:var(--card);border-radius:18px 18px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom) + 16px);max-height:90vh;overflow:auto}
+.sheet h2{margin:0 0 14px;font-size:18px}
+.lbl{font-size:13px;color:var(--sub);margin:14px 0 6px}
+.seg{display:flex;background:var(--bg);border-radius:12px;padding:3px}
+.seg button{flex:1;padding:10px 4px;border-radius:9px;font-size:15px;color:var(--sub)}
+.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.row{display:flex;gap:10px;margin-top:18px}
+.info{font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6}
+
+#busy{position:fixed;inset:0;background:#0008;z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;color:#fff}
+.spin{width:44px;height:44px;border-radius:50%;border:4px solid #fff4;border-top-color:#fff;animation:sp 0.8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:#222c;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:60;max-width:88vw;text-align:center;transition:opacity .3s}
+#cvStatus{font-size:12px;color:var(--sub);padding:0 16px 6px}
+</style>
+</head>
+<body>
+
+<!-- 首頁 -->
+<section id="home" class="screen">
+  <header>
+    <h1>掃描文件</h1>
+    <button class="ghost" id="clearBtn">清除全部</button>
+  </header>
+  <div id="cvStatus">辨識引擎載入中…(第一次比較久)</div>
+  <div id="grid"></div>
+  <div class="bar">
+    <button class="btn" id="camBtn">📷 拍照</button>
+    <button class="btn" id="albumBtn">🖼 相簿</button>
+    <button class="btn pri" id="exportBtn" disabled>分享</button>
+  </div>
+  <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
+  <input type="file" id="albumInput" accept="image/*" multiple hidden>
+</section>
+
+<!-- 裁切 -->
+<section id="crop" class="screen dark hidden">
+  <div class="top">
+    <button class="tbtn" id="cropCancel">取消</button>
+    <div class="t" id="cropTitle">拉四個角對齊文件</div>
+    <button class="tbtn go" id="cropOk">下一步</button>
+  </div>
+  <div class="stageWrap" id="stageWrap">
+    <div id="stage">
+      <canvas id="stageCv"></canvas>
+      <svg id="poly"><polygon fill="rgba(76,141,255,.18)" stroke="#4c8dff" stroke-width="2.5"/></svg>
+      <div class="handle" data-i="0"></div><div class="handle" data-i="1"></div>
+      <div class="handle" data-i="2"></div><div class="handle" data-i="3"></div>
+    </div>
+    <canvas id="loupe" width="240" height="240" class="hidden"></canvas>
+  </div>
+  <div class="tools">
+    <button class="tool" id="cropAuto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M9 12l2 2 4-4"/></svg>自動偵測</button>
+    <button class="tool" id="cropFull"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="1"/></svg>整張照片</button>
+  </div>
+</section>
+
+<!-- 單頁編輯 -->
+<section id="edit" class="screen dark hidden">
+  <div class="top">
+    <button class="tbtn" id="editBack">返回</button>
+    <div class="t" id="editTitle">第 1 頁</div>
+    <button class="tbtn go" id="editDone">完成</button>
+  </div>
+  <div class="preview"><img id="editImg" alt=""></div>
+  <div class="chips" id="filters">
+    <button class="chip" data-f="orig">原色</button>
+    <button class="chip" data-f="enhance">增強</button>
+    <button class="chip" data-f="gray">灰階</button>
+    <button class="chip" data-f="bw">黑白</button>
+  </div>
+  <div class="tools">
+    <button class="tool" id="rotL"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4v6h6"/><path d="M3.5 10A9 9 0 1 1 6 18.5"/></svg>左轉</button>
+    <button class="tool" id="rotR"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 4v6h-6"/><path d="M20.5 10A9 9 0 1 0 18 18.5"/></svg>右轉</button>
+    <button class="tool" id="recrop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>重新裁切</button>
+    <button class="tool" id="moveUp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>往前</button>
+    <button class="tool" id="moveDn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>往後</button>
+    <button class="tool danger" id="delPage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>刪除</button>
+  </div>
+</section>
+
+<!-- 匯出 -->
+<div class="mask hidden" id="exportMask">
+  <div class="sheet">
+    <h2>分享 / 儲存</h2>
+    <div class="lbl">檔名</div>
+    <input type="text" id="fname">
+    <div class="lbl">格式</div>
+    <div class="seg" id="fmtSeg"><button data-v="pdf" class="on">PDF(合成一份)</button><button data-v="jpg">JPG(每頁一張)</button></div>
+    <div id="sizeBox">
+      <div class="lbl">PDF 頁面大小</div>
+      <div class="seg" id="sizeSeg"><button data-v="a4" class="on">A4</button><button data-v="fit">跟照片一樣</button></div>
+    </div>
+    <div class="info" id="expInfo">準備中…</div>
+    <div class="row">
+      <button class="btn" id="saveBtn" disabled>💾 存到手機</button>
+      <button class="btn pri" id="shareBtn" disabled>傳 LINE / 寄信</button>
+    </div>
+    <div class="info">按「傳 LINE / 寄信」會跳出手機的分享選單,選 LINE 或郵件就能直接附上檔案。</div>
+    <div class="row"><button class="btn" id="expClose">關閉</button></div>
+  </div>
+</div>
+
+<div id="busy" class="hidden"><div class="spin"></div><div id="busyTxt">處理中…</div></div>
+<div id="toast" style="opacity:0"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const BUILD = '20261029a';
+const $ = s => document.querySelector(s);
+const show = (el, on = true) => el.classList.toggle('hidden', !on);
+const nextFrame = () => new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 80); });
+
+let toastT;
+function toast(msg, ms = 2600) {
+  const t = $('#toast'); t.textContent = msg; t.style.opacity = 1;
+  clearTimeout(toastT); toastT = setTimeout(() => t.style.opacity = 0, ms);
+}
+async function busy(txt, fn) {
+  $('#busyTxt').textContent = txt; show($('#busy'));
+  await nextFrame();
+  try { return await fn(); } finally { show($('#busy'), false); }
+}
+
+/* ---------- OpenCV(只用來偵測文件邊框;載不到也能手動拉角) ---------- */
+let cvState = 'loading';
+(function loadCV() {
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js';
+  s.async = true;
+  s.onerror = () => setCv('fail');
+  document.head.appendChild(s);
+  const t0 = Date.now();
+  (function chk() {
+    const c = window.cv;
+    if (c && c.Mat) return setCv('ready');
+    if (c && typeof c.then === 'function' && !c.__hooked) {
+      c.__hooked = 1;
+      c.then(m => { if (m && m.Mat) { window.cv = m; setCv('ready'); } });
+    }
+    if (cvState !== 'loading') return;
+    if (Date.now() - t0 > 60000) return setCv('fail');
+    setTimeout(chk, 200);
+  })();
+})();
+function setCv(st) {
+  if (cvState === 'ready') return;
+  cvState = st;
+  const el = $('#cvStatus');
+  if (st === 'ready') { el.textContent = ''; show(el, false); }
+  else if (st === 'fail') el.textContent = '自動偵測邊框無法使用(網路問題),可以手動拉四個角裁切';
+}
+
+/* ---------- 資料 ---------- */
+// page: {file, quad, baseBlob, filter, rot, outBlob, thumb, w, h}
+const pages = [];
+let queue = [];         // 等待裁切的檔案
+let crop = null;        // {file, src(canvas), quad, pageIdx}
+let editIdx = -1;
+
+function loadImg(blob) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('圖片讀取失敗')); };
+    img.src = url;
+  });
+}
+async function fileToCanvas(file, max = 3200) {
+  const img = await loadImg(file);
+  const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+const toBlob = (c, q = 0.9) => new Promise(r => c.toBlob(r, 'image/jpeg', q));
+function freeCanvas(c) { if (c) { c.width = c.height = 0; } } // iOS 記憶體要手動釋放
+
+/* ---------- 邊框偵測 ---------- */
+function orderPts(p) {
+  const cx = p.reduce((a, q) => a + q.x, 0) / 4, cy = p.reduce((a, q) => a + q.y, 0) / 4;
+  const s = [...p].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+  let k = 0;
+  s.forEach((q, i) => { if (q.x + q.y < s[k].x + s[k].y) k = i; });
+  return [0, 1, 2, 3].map(i => s[(k + i) % 4]); // 左上、右上、右下、左下
+}
+function defaultQuad(W, H, m = 0.06) {
+  return [{x:W*m,y:H*m},{x:W*(1-m),y:H*m},{x:W*(1-m),y:H*(1-m)},{x:W*m,y:H*(1-m)}];
+}
+function detectQuad(src) {
+  if (cvState !== 'ready') return null;
+  const W = src.width, H = src.height, s = Math.min(1, 640 / Math.max(W, H));
+  const sm = document.createElement('canvas');
+  sm.width = Math.round(W * s); sm.height = Math.round(H * s);
+  sm.getContext('2d').drawImage(src, 0, 0, sm.width, sm.height);
+  let q = null;
+  try { q = cvDetect(sm); } catch (e) { console.warn('detect', e); }
+  freeCanvas(sm);
+  return q && q.map(p => ({ x: p.x / s, y: p.y / s }));
+}
+function cvDetect(c) {
+  const src = cv.imread(c), gray = new cv.Mat(), blur = new cv.Mat(), bin = new cv.Mat();
+  const k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
+  const area = c.width * c.height;
+  try {
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
+    const tries = [
+      () => { cv.Canny(blur, bin, 30, 90); cv.morphologyEx(bin, bin, cv.MORPH_CLOSE, k); },
+      () => { cv.Canny(blur, bin, 75, 200); cv.morphologyEx(bin, bin, cv.MORPH_CLOSE, k); },
+      () => { cv.threshold(blur, bin, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU); },
+    ];
+    for (const t of tries) { t(); const q = findQuad(bin, area); if (q) return q; }
+    return null;
+  } finally { [src, gray, blur, bin, k].forEach(m => m.delete()); }
+}
+function findQuad(bin, area) {
+  const cs = new cv.MatVector(), hier = new cv.Mat();
+  cv.findContours(bin, cs, hier, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+  let best = null, bestA = 0;
+  for (let i = 0; i < cs.size(); i++) {
+    const cnt = cs.get(i), a = cv.contourArea(cnt);
+    if (a > area * 0.12 && a > bestA) {
+      const hull = new cv.Mat(); cv.convexHull(cnt, hull, false, true);
+      const peri = cv.arcLength(hull, true);
+      for (const eps of [0.02, 0.035, 0.05]) {
+        const ap = new cv.Mat(); cv.approxPolyDP(hull, ap, eps * peri, true);
+        if (ap.rows === 4 && cv.contourArea(ap) < area * 0.97) {
+          bestA = a; best = [];
+          for (let j = 0; j < 4; j++) best.push({ x: ap.data32S[j*2], y: ap.data32S[j*2+1] });
+          ap.delete(); break;
+        }
+        ap.delete();
+      }
+      hull.delete();
+    }
+    cnt.delete();
+  }
+  cs.delete(); hier.delete();
+  return best && orderPts(best);
+}
+
+/* ---------- 透視校正(純 JS,不靠 OpenCV) ---------- */
+function solve(A, b) {
+  const n = b.length, M = A.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = 0; r < n; r++) if (r !== c) {
+      const f = M[r][c] / M[c][c];
+      for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  return M.map((r, i) => r[n] / r[i]);
+}
+function homography(from, to) {
+  const A = [], B = [];
+  for (let i = 0; i < 4; i++) {
+    const { x: u, y: v } = from[i], { x, y } = to[i];
+    A.push([u, v, 1, 0, 0, 0, -u * x, -v * x]); B.push(x);
+    A.push([0, 0, 0, u, v, 1, -u * y, -v * y]); B.push(y);
+  }
+  return solve(A, B);
+}
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+function warp(src, q) {
+  let W = Math.max(dist(q[0], q[1]), dist(q[3], q[2])), H = Math.max(dist(q[0], q[3]), dist(q[1], q[2]));
+  const s = Math.min(1, 2480 / Math.max(W, H));
+  W = Math.max(1, Math.round(W * s)); H = Math.max(1, Math.round(H * s));
+  const [a, b, c, d, e, f, g, h] = homography([{x:0,y:0},{x:W-1,y:0},{x:W-1,y:H-1},{x:0,y:H-1}], q);
+  const sw = src.width, sh = src.height;
+  const sd = src.getContext('2d').getImageData(0, 0, sw, sh).data;
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  const ctx = out.getContext('2d'), od = ctx.createImageData(W, H), o = od.data;
+  const mx = sw - 1.001, my = sh - 1.001, row = sw * 4;
+  let k = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++, k += 4) {
+      const w = g * x + h * y + 1;
+      let sx = (a * x + b * y + c) / w, sy = (d * x + e * y + f) / w;
+      sx = sx < 0 ? 0 : sx > mx ? mx : sx; sy = sy < 0 ? 0 : sy > my ? my : sy;
+      const x0 = sx | 0, y0 = sy | 0, fx = sx - x0, fy = sy - y0;
+      const i = (y0 * sw + x0) * 4, j = i + row;
+      const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+      o[k]   = sd[i]  *w00 + sd[i+4]*w10 + sd[j]  *w01 + sd[j+4]*w11;
+      o[k+1] = sd[i+1]*w00 + sd[i+5]*w10 + sd[j+1]*w01 + sd[j+5]*w11;
+      o[k+2] = sd[i+2]*w00 + sd[i+6]*w10 + sd[j+2]*w01 + sd[j+6]*w11;
+      o[k+3] = 255;
+    }
+  }
+  ctx.putImageData(od, 0, 0);
+  return out;
+}
+
+/* ---------- 濾鏡:去陰影(背景估計)+ 增強 / 灰階 / 黑白 ---------- */
+function rotateCanvas(src, rot) {
+  const r = ((rot % 360) + 360) % 360;
+  if (!r) return src;
+  const c = document.createElement('canvas');
+  c.width = r % 180 ? src.height : src.width; c.height = r % 180 ? src.width : src.height;
+  const ctx = c.getContext('2d');
+  ctx.translate(c.width / 2, c.height / 2); ctx.rotate(r * Math.PI / 180);
+  ctx.drawImage(src, -src.width / 2, -src.height / 2);
+  freeCanvas(src);
+  return c;
+}
+function bgGrid(d, W, H) {
+  // 每個方格取最亮值當紙張底色,再平滑,用來抵消陰影與光線不均
+  const B = Math.max(8, Math.round(Math.max(W, H) / 40));
+  const gw = Math.ceil(W / B), gh = Math.ceil(H / B), n = gw * gh;
+  const g = [new Float32Array(n), new Float32Array(n), new Float32Array(n)];
+  for (let y = 0; y < H; y += 2) {
+    const gy = (y / B | 0) * gw;
+    for (let x = 0; x < W; x += 2) {
+      const i = (y * W + x) * 4, gi = gy + (x / B | 0);
+      if (d[i] > g[0][gi]) g[0][gi] = d[i];
+      if (d[i+1] > g[1][gi]) g[1][gi] = d[i+1];
+      if (d[i+2] > g[2][gi]) g[2][gi] = d[i+2];
+    }
+  }
+  const pass = (src, op) => {
+    const dst = new Float32Array(n);
+    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
+      let m = op === 'max' ? 0 : 0, cnt = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const yy = y + dy, xx = x + dx;
+        if (yy < 0 || yy >= gh || xx < 0 || xx >= gw) continue;
+        const v = src[yy * gw + xx];
+        if (op === 'max') { if (v > m) m = v; } else { m += v; cnt++; }
+      }
+      dst[y * gw + x] = op === 'max' ? m : m / cnt;
+    }
+    return dst;
+  };
+  for (let c = 0; c < 3; c++) g[c] = pass(pass(pass(g[c], 'max'), 'avg'), 'avg');
+  return { B, gw, gh, g };
+}
+function applyFilter(base, filter, rot) {
+  let c = document.createElement('canvas');
+  c.width = base.width; c.height = base.height;
+  c.getContext('2d').drawImage(base, 0, 0);
+  c = rotateCanvas(c, rot);
+  if (filter === 'orig') return c;
+  const W = c.width, H = c.height, ctx = c.getContext('2d');
+  const id = ctx.getImageData(0, 0, W, H), d = id.data;
+  const { B, gw, gh, g } = bgGrid(d, W, H);
+  // 對比曲線
+  const curve = new Uint8ClampedArray(256);
+  for (let i = 0; i < 256; i++) {
+    const t = Math.min(1, Math.max(0, (i / 255 - 0.08) / 0.84));
+    curve[i] = 255 * Math.pow(t, 1.5);
+  }
+  const bwLo = 0.60, bwHi = 0.80;
+  for (let y = 0; y < H; y++) {
+    let gy = (y + 0.5) / B - 0.5; gy = gy < 0 ? 0 : gy > gh - 1 ? gh - 1 : gy;
+    const y0 = gy | 0, y1 = Math.min(gh - 1, y0 + 1), fy = gy - y0;
+    for (let x = 0; x < W; x++) {
+      let gx = (x + 0.5) / B - 0.5; gx = gx < 0 ? 0 : gx > gw - 1 ? gw - 1 : gx;
+      const x0 = gx | 0, x1 = Math.min(gw - 1, x0 + 1), fx = gx - x0;
+      const a = y0 * gw + x0, b = y0 * gw + x1, cc = y1 * gw + x0, dd = y1 * gw + x1;
+      const i = (y * W + x) * 4;
+      const n = [0, 0, 0];
+      for (let ch = 0; ch < 3; ch++) {
+        const G = g[ch];
+        const bg = (G[a] * (1 - fx) + G[b] * fx) * (1 - fy) + (G[cc] * (1 - fx) + G[dd] * fx) * fy;
+        n[ch] = Math.min(255, d[i + ch] * 255 / Math.max(bg, 40));
+      }
+      if (filter === 'enhance') {
+        d[i] = curve[n[0] | 0]; d[i+1] = curve[n[1] | 0]; d[i+2] = curve[n[2] | 0];
+      } else {
+        const L = 0.299 * n[0] + 0.587 * n[1] + 0.114 * n[2];
+        let v;
+        if (filter === 'gray') v = curve[L | 0];
+        else { const t = (L / 255 - bwLo) / (bwHi - bwLo); v = t <= 0 ? 0 : t >= 1 ? 255 : t * 255; }
+        d[i] = d[i+1] = d[i+2] = v;
+      }
+    }
+  }
+  ctx.putImageData(id, 0, 0);
+  return c;
+}
+
+/* ---------- 頁面 ---------- */
+async function renderPage(p) {
+  const base = await fileToCanvas(p.baseBlob, 99999);
+  const out = applyFilter(base, p.filter, p.rot);
+  freeCanvas(base);
+  p.w = out.width; p.h = out.height;
+  if (p.outUrl) URL.revokeObjectURL(p.outUrl);
+  p.outBlob = await toBlob(out, 0.88);
+  p.outUrl = URL.createObjectURL(p.outBlob);
+  // 縮圖
+  const s = 360 / Math.max(out.width, out.height);
+  const t = document.createElement('canvas');
+  t.width = Math.round(out.width * s); t.height = Math.round(out.height * s);
+  t.getContext('2d').drawImage(out, 0, 0, t.width, t.height);
+  p.thumb = t.toDataURL('image/jpeg', 0.8);
+  freeCanvas(t); freeCanvas(out);
+}
+function renderGrid() {
+  const g = $('#grid');
+  if (!pages.length) {
+    g.innerHTML = `<div class="empty"><div class="big">📄</div>按下方「拍照」對著文件拍<br>會自動找到文件邊緣、把多的邊裁掉<br>可以拍很多頁,再合成一份 PDF 傳出去</div>`;
+  } else {
+    g.innerHTML = pages.map((p, i) => `<button class="thumb" data-i="${i}"><span class="no">${i + 1}</span><img src="${p.thumb}" alt="第 ${i + 1} 頁"></button>`).join('');
+  }
+  $('#exportBtn').disabled = !pages.length;
+  $('#exportBtn').textContent = pages.length ? `分享 (${pages.length} 頁)` : '分享';
+  show($('#clearBtn'), pages.length > 0);
+}
+$('#grid').addEventListener('click', e => {
+  const t = e.target.closest('.thumb'); if (t) openEdit(+t.dataset.i);
+});
+
+/* ---------- 拍照 / 相簿 ---------- */
+$('#camBtn').onclick = () => $('#camInput').click();
+$('#albumBtn').onclick = () => $('#albumInput').click();
+for (const id of ['#camInput', '#albumInput']) {
+  $(id).addEventListener('change', e => {
+    const files = [...e.target.files]; e.target.value = '';
+    if (files.length) { queue.push(...files); nextInQueue(); }
+  });
+}
+async function nextInQueue() {
+  if (crop || !queue.length) return;
+  const file = queue.shift();
+  try { await openCrop(file, null, -1); }
+  catch (e) { toast('這張照片打不開:' + e.message); crop = null; nextInQueue(); }
+}
+
+/* ---------- 裁切畫面 ---------- */
+let view = { k: 1 };
+async function openCrop(file, quad, pageIdx) {
+  await busy('找文件邊緣中…', async () => {
+    const src = await fileToCanvas(file);
+    let q = quad, found = true;
+    if (!q) { q = detectQuad(src); if (!q) { found = false; q = defaultQuad(src.width, src.height); } }
+    crop = { file, src, quad: q.map(p => ({ ...p })), pageIdx };
+    show($('#home'), false); show($('#edit'), false); show($('#crop'));
+    $('#cropTitle').textContent = queue.length ? `拉四個角對齊文件(還有 ${queue.length} 張)` : '拉四個角對齊文件';
+    layoutStage();
+    if (!quad && !found) toast(cvState === 'ready' ? '沒找到文件邊緣,請手動拉四個角' : '請手動拉四個角對齊文件');
+  });
+}
+function layoutStage() {
+  if (!crop) return;
+  const wrap = $('#stageWrap').getBoundingClientRect(), pad = 24;
+  const sw = crop.src.width, sh = crop.src.height;
+  const k = Math.min((wrap.width - pad * 2) / sw, (wrap.height - pad * 2) / sh);
+  const w = sw * k, h = sh * k;
+  view.k = k;
+  const st = $('#stage');
+  Object.assign(st.style, { width: w + 'px', height: h + 'px', left: (wrap.width - w) / 2 + 'px', top: (wrap.height - h) / 2 + 'px' });
+  const cv2 = $('#stageCv'), dpr = Math.min(2, devicePixelRatio || 1);
+  cv2.width = Math.round(w * dpr); cv2.height = Math.round(h * dpr);
+  cv2.getContext('2d').drawImage(crop.src, 0, 0, cv2.width, cv2.height);
+  drawQuad();
+}
+function drawQuad() {
+  const k = view.k, q = crop.quad;
+  $('#poly polygon').setAttribute('points', q.map(p => `${p.x * k},${p.y * k}`).join(' '));
+  document.querySelectorAll('#stage .handle').forEach(h => {
+    const p = q[+h.dataset.i]; h.style.left = p.x * k + 'px'; h.style.top = p.y * k + 'px';
+  });
+}
+function drawLoupe(p, i) {
+  const L = $('#loupe'), ctx = L.getContext('2d'), Z = 3;       // 放大 3 倍
+  const r = 60 / (Z * view.k);                                   // 放大鏡 CSS 寬 120px
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, L.width, L.height);
+  ctx.save(); ctx.beginPath(); ctx.arc(120, 120, 120, 0, Math.PI * 2); ctx.clip();
+  ctx.drawImage(crop.src, p.x - r, p.y - r, r * 2, r * 2, 0, 0, L.width, L.height);
+  ctx.strokeStyle = '#4c8dff'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(120, 96); ctx.lineTo(120, 144); ctx.moveTo(96, 120); ctx.lineTo(144, 120); ctx.stroke();
+  ctx.restore();
+  // 手指在左半邊就把放大鏡放右邊
+  const left = (i === 0 || i === 3) ? null : 10;
+  L.style.left = left === null ? '' : left + 'px';
+  L.style.right = left === null ? '10px' : '';
+}
+document.querySelectorAll('#stage .handle').forEach(h => {
+  h.addEventListener('pointerdown', e => {
+    e.preventDefault(); h.setPointerCapture(e.pointerId);
+    const i = +h.dataset.i, st = $('#stage').getBoundingClientRect();
+    const p0 = crop.quad[i], start = { x: e.clientX, y: e.clientY, px: p0.x, py: p0.y };
+    show($('#loupe')); drawLoupe(p0, i);
+    const move = ev => {
+      const W = crop.src.width, H = crop.src.height;
+      const nx = start.px + (ev.clientX - start.x) / view.k, ny = start.py + (ev.clientY - start.y) / view.k;
+      crop.quad[i] = { x: Math.max(0, Math.min(W, nx)), y: Math.max(0, Math.min(H, ny)) };
+      drawQuad(); drawLoupe(crop.quad[i], i);
+    };
+    const up = () => {
+      h.removeEventListener('pointermove', move); h.removeEventListener('pointerup', up); h.removeEventListener('pointercancel', up);
+      show($('#loupe'), false);
+    };
+    h.addEventListener('pointermove', move); h.addEventListener('pointerup', up); h.addEventListener('pointercancel', up);
+  });
+});
+addEventListener('resize', () => { if (!$('#crop').classList.contains('hidden')) layoutStage(); });
+$('#cropAuto').onclick = () => {
+  if (cvState !== 'ready') return toast(cvState === 'loading' ? '辨識引擎還在載入,稍等幾秒' : '自動偵測無法使用,請手動拉角');
+  const q = detectQuad(crop.src);
+  if (q) { crop.quad = q; drawQuad(); } else toast('沒找到文件邊緣,請手動拉四個角');
+};
+$('#cropFull').onclick = () => { crop.quad = defaultQuad(crop.src.width, crop.src.height, 0); drawQuad(); };
+$('#cropCancel').onclick = () => {
+  const idx = crop.pageIdx; closeCrop();
+  if (idx >= 0) openEdit(idx); else { goHome(); nextInQueue(); }
+};
+function closeCrop() { if (crop) freeCanvas(crop.src); crop = null; freeCanvas($('#stageCv')); }
+$('#cropOk').onclick = async () => {
+  const q = orderPts(crop.quad);
+  if (Math.abs(polyArea(q)) < 400) return toast('框太小了,把四個角拉開一點');
+  let idx = crop.pageIdx;
+  await busy('裁切校正中…', async () => {
+    const out = warp(crop.src, q);
+    const baseBlob = await toBlob(out, 0.92); freeCanvas(out);
+    let p;
+    if (idx >= 0) { p = pages[idx]; p.quad = q; p.baseBlob = baseBlob; }
+    else { p = { file: crop.file, quad: q, baseBlob, filter: 'enhance', rot: 0 }; pages.push(p); idx = pages.length - 1; }
+    await renderPage(p);
+  });
+  closeCrop();
+  if (queue.length) { renderGrid(); nextInQueue(); }
+  else openEdit(idx);
+};
+function polyArea(q) { let a = 0; for (let i = 0; i < 4; i++) { const p = q[i], n = q[(i + 1) % 4]; a += p.x * n.y - n.x * p.y; } return a / 2; }
+
+/* ---------- 單頁編輯 ---------- */
+function openEdit(i) {
+  editIdx = i;
+  show($('#home'), false); show($('#crop'), false); show($('#edit'));
+  refreshEdit();
+}
+function refreshEdit() {
+  const p = pages[editIdx];
+  $('#editTitle').textContent = `第 ${editIdx + 1} / ${pages.length} 頁`;
+  $('#editImg').src = p.outUrl;
+  document.querySelectorAll('#filters .chip').forEach(c => c.classList.toggle('on', c.dataset.f === p.filter));
+  $('#moveUp').disabled = editIdx === 0; $('#moveDn').disabled = editIdx === pages.length - 1;
+  $('#moveUp').style.opacity = editIdx === 0 ? .35 : 1; $('#moveDn').style.opacity = editIdx === pages.length - 1 ? .35 : 1;
+}
+async function rerender() { await busy('處理中…', () => renderPage(pages[editIdx])); refreshEdit(); }
+$('#filters').addEventListener('click', e => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  const p = pages[editIdx]; if (p.filter === c.dataset.f) return;
+  p.filter = c.dataset.f; rerender();
+});
+$('#rotL').onclick = () => { pages[editIdx].rot -= 90; rerender(); };
+$('#rotR').onclick = () => { pages[editIdx].rot += 90; rerender(); };
+$('#recrop').onclick = () => { const p = pages[editIdx]; openCrop(p.file, p.quad, editIdx).catch(e => toast(e.message)); };
+$('#moveUp').onclick = () => { if (editIdx > 0) { [pages[editIdx - 1], pages[editIdx]] = [pages[editIdx], pages[editIdx - 1]]; editIdx--; refreshEdit(); } };
+$('#moveDn').onclick = () => { if (editIdx < pages.length - 1) { [pages[editIdx + 1], pages[editIdx]] = [pages[editIdx], pages[editIdx + 1]]; editIdx++; refreshEdit(); } };
+$('#delPage').onclick = () => {
+  if (!confirm('刪除這一頁?')) return;
+  const [p] = pages.splice(editIdx, 1); if (p.outUrl) URL.revokeObjectURL(p.outUrl);
+  goHome();
+};
+$('#editBack').onclick = $('#editDone').onclick = () => goHome();
+function goHome() { show($('#crop'), false); show($('#edit'), false); show($('#home')); renderGrid(); }
+$('#clearBtn').onclick = () => {
+  if (!confirm(`清除全部 ${pages.length} 頁?`)) return;
+  pages.forEach(p => p.outUrl && URL.revokeObjectURL(p.outUrl)); pages.length = 0; renderGrid();
+};
+
+/* ---------- 匯出 / 分享 ---------- */
+const exp = { fmt: 'pdf', size: 'a4', files: null, token: 0 };
+function defaultName() {
+  const d = new Date(), z = n => String(n).padStart(2, '0');
+  return `掃描_${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
+}
+function safeName() { return ($('#fname').value.trim() || defaultName()).replace(/[\\/:*?"<>|]/g, '_'); }
+$('#exportBtn').onclick = () => {
+  $('#fname').value = defaultName();
+  show($('#exportMask')); prepare();
+};
+$('#expClose').onclick = () => show($('#exportMask'), false);
+$('#exportMask').addEventListener('click', e => { if (e.target.id === 'exportMask') show($('#exportMask'), false); });
+for (const [seg, key] of [['#fmtSeg', 'fmt'], ['#sizeSeg', 'size']]) {
+  $(seg).addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    exp[key] = b.dataset.v;
+    $(seg).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+    show($('#sizeBox'), exp.fmt === 'pdf');
+    prepare();
+  });
+}
+$('#fname').addEventListener('input', () => { clearTimeout(exp.nt); exp.nt = setTimeout(prepare, 400); });
+
+// 先把檔案做好,按「分享」時才能立刻叫出分享選單(iPhone 要求要在點擊當下)
+async function prepare() {
+  const my = ++exp.token;
+  exp.files = null; $('#shareBtn').disabled = $('#saveBtn').disabled = true;
+  $('#expInfo').textContent = '準備檔案中…';
+  await nextFrame();
+  try {
+    const name = safeName(); let files;
+    if (exp.fmt === 'pdf') files = [new File([await makePdf()], name + '.pdf', { type: 'application/pdf' })];
+    else files = pages.map((p, i) => new File([p.outBlob], pages.length > 1 ? `${name}_${i + 1}.jpg` : `${name}.jpg`, { type: 'image/jpeg' }));
+    if (my !== exp.token) return;
+    exp.files = files;
+    const kb = files.reduce((a, f) => a + f.size, 0) / 1024;
+    $('#expInfo').textContent = `${files.length} 個檔案,共 ${kb > 1024 ? (kb / 1024).toFixed(1) + ' MB' : Math.round(kb) + ' KB'}`;
+    $('#shareBtn').disabled = $('#saveBtn').disabled = false;
+  } catch (e) {
+    if (my === exp.token) $('#expInfo').textContent = '產生失敗:' + e.message;
+  }
+}
+async function makePdf() {
+  if (!window.jspdf) throw new Error('PDF 元件沒載入,請確認網路後重新整理');
+  const { jsPDF } = window.jspdf;
+  let doc;
+  for (const p of pages) {
+    const data = new Uint8Array(await p.outBlob.arrayBuffer());
+    const land = p.w > p.h;
+    let pw, ph;
+    if (exp.size === 'a4') { pw = land ? 297 : 210; ph = land ? 210 : 297; }
+    else { pw = land ? 297 : 210; ph = pw * p.h / p.w; }
+    const fmt = [pw, ph], ori = pw > ph ? 'l' : 'p';
+    if (!doc) doc = new jsPDF({ unit: 'mm', format: fmt, orientation: ori, compress: true });
+    else doc.addPage(fmt, ori);
+    const s = Math.min(pw / p.w, ph / p.h), w = p.w * s, h = p.h * s;
+    doc.addImage(data, 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h, undefined, 'FAST');
+  }
+  return doc.output('blob');
+}
+$('#shareBtn').onclick = async () => {
+  const files = exp.files; if (!files) return;
+  if (navigator.canShare && navigator.canShare({ files })) {
+    try { await navigator.share({ files }); }
+    catch (e) { if (e.name !== 'AbortError') toast('分享失敗:' + e.message); }
+  } else {
+    download(files);
+    toast('這個瀏覽器不能直接分享,已改成下載,再從「檔案」傳出去', 4000);
+  }
+};
+$('#saveBtn').onclick = () => {
+  const files = exp.files; if (!files) return;
+  // iPhone 上用分享選單的「儲存到檔案」/「儲存影像」最穩
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent) && navigator.canShare && navigator.canShare({ files })) {
+    toast('請在選單中選「儲存到檔案」或「儲存影像」', 3500);
+    navigator.share({ files }).catch(() => {});
+  } else download(files);
+};
+function download(files) {
+  files.forEach((f, i) => setTimeout(() => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }, i * 400));
+}
+
+/* ---------- 離線 + 更新 ---------- */
+renderGrid();
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+addEventListener('beforeunload', e => { if (pages.length) { e.preventDefault(); e.returnValue = ''; } });
+</script>
+</body>
+</html>
