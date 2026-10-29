@@ -187,7 +187,7 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const BUILD = '20261029c';
+const BUILD = '20261029d';
 const $ = s => document.querySelector(s);
 const show = (el, on = true) => el.classList.toggle('hidden', !on);
 const nextFrame = () => new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 80); });
@@ -272,7 +272,7 @@ function defaultQuad(W, H, m = 0.06) {
 }
 function detectQuad(src) {
   if (cvState !== 'ready') return null;
-  const W = src.width, H = src.height, s = Math.min(1, 640 / Math.max(W, H));
+  const W = src.width, H = src.height, s = Math.min(1, 1000 / Math.max(W, H));
   const sm = document.createElement('canvas');
   sm.width = Math.round(W * s); sm.height = Math.round(H * s);
   sm.getContext('2d').drawImage(src, 0, 0, sm.width, sm.height);
@@ -281,46 +281,71 @@ function detectQuad(src) {
   freeCanvas(sm);
   return q && q.map(p => ({ x: p.x / s, y: p.y / s }));
 }
+// 用幾種方法各找候選框,打分數挑最好的:
+//  ① 亮度分割:白紙通常比桌面亮,不會被木紋之類的花紋干擾
+//  ② 找線條:紙跟桌面一樣亮時的備案
 function cvDetect(c) {
-  const src = cv.imread(c), gray = new cv.Mat(), blur = new cv.Mat(), bin = new cv.Mat();
-  const k = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5));
-  const area = c.width * c.height;
+  const area = c.width * c.height, mats = [], cands = [];
+  const M = m => (mats.push(m), m);
   try {
+    const src = M(cv.imread(c)), gray = M(new cv.Mat()), mn = M(new cv.Mat());
     cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-    cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0);
-    const tries = [
-      () => { cv.Canny(blur, bin, 30, 90); cv.morphologyEx(bin, bin, cv.MORPH_CLOSE, k); },
-      () => { cv.Canny(blur, bin, 75, 200); cv.morphologyEx(bin, bin, cv.MORPH_CLOSE, k); },
-      () => { cv.threshold(blur, bin, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU); },
-    ];
-    for (const t of tries) { t(); const q = findQuad(bin, area); if (q) return q; }
-    return null;
-  } finally { [src, gray, blur, bin, k].forEach(m => m.delete()); }
+    // 三色取最小值:白紙三色都高,木頭、彩色桌面至少有一色偏低,對比更明顯
+    const ch = new cv.MatVector(); cv.split(src, ch);
+    const r = ch.get(0), g = ch.get(1), b = ch.get(2);
+    cv.min(r, g, mn); cv.min(mn, b, mn);
+    [r, g, b, ch].forEach(m => m.delete());
+    const kBig = M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(9, 9)));
+    const kSm = M(cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(5, 5)));
+    for (const base of [gray, mn]) {
+      const bl = M(new cv.Mat()), bin = M(new cv.Mat());
+      cv.GaussianBlur(base, bl, new cv.Size(7, 7), 0);
+      cv.threshold(bl, bin, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+      cv.morphologyEx(bin, bin, cv.MORPH_OPEN, kBig);
+      cv.morphologyEx(bin, bin, cv.MORPH_CLOSE, kBig);
+      collectQuads(bin, area, cv.RETR_EXTERNAL, 1, cands);
+      cv.Canny(bl, bin, 40, 120);
+      cv.morphologyEx(bin, bin, cv.MORPH_CLOSE, kSm);
+      collectQuads(bin, area, cv.RETR_LIST, 0.9, cands);
+    }
+  } finally { mats.forEach(m => m.delete()); }
+  if (!cands.length) return null;
+  cands.sort((a, b) => b.score - a.score);
+  return cands[0].pts;
 }
-function findQuad(bin, area) {
+function quadAngles(p) {
+  return p.map((q, i) => {
+    const a = p[(i + 3) % 4], b = p[(i + 1) % 4];
+    const x1 = a.x - q.x, y1 = a.y - q.y, x2 = b.x - q.x, y2 = b.y - q.y;
+    return Math.acos((x1 * x2 + y1 * y2) / (Math.hypot(x1, y1) * Math.hypot(x2, y2) || 1)) * 180 / Math.PI;
+  });
+}
+// 候選框要通過:框內幾乎都是同一塊(fill 高,排除被桌面紋路撐大的框)、四個角角度合理
+function collectQuads(bin, area, mode, weight, out) {
   const cs = new cv.MatVector(), hier = new cv.Mat();
-  cv.findContours(bin, cs, hier, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-  let best = null, bestA = 0;
+  cv.findContours(bin, cs, hier, mode, cv.CHAIN_APPROX_SIMPLE);
   for (let i = 0; i < cs.size(); i++) {
     const cnt = cs.get(i), a = cv.contourArea(cnt);
-    if (a > area * 0.12 && a > bestA) {
+    if (a > area * 0.1) {
       const hull = new cv.Mat(); cv.convexHull(cnt, hull, false, true);
       const peri = cv.arcLength(hull, true);
-      for (const eps of [0.02, 0.035, 0.05]) {
+      for (const eps of [0.015, 0.025, 0.04, 0.06]) {
         const ap = new cv.Mat(); cv.approxPolyDP(hull, ap, eps * peri, true);
-        if (ap.rows === 4 && cv.contourArea(ap) < area * 0.97) {
-          bestA = a; best = [];
-          for (let j = 0; j < 4; j++) best.push({ x: ap.data32S[j*2], y: ap.data32S[j*2+1] });
-          ap.delete(); break;
+        const n = ap.rows;
+        if (n === 4) {
+          const pts = orderPts([0, 1, 2, 3].map(j => ({ x: ap.data32S[j * 2], y: ap.data32S[j * 2 + 1] })));
+          const qa = Math.abs(polyArea(pts)), fill = a / qa;
+          if (qa < area * 0.97 && fill > 0.85 && quadAngles(pts).every(t => t > 45 && t < 135))
+            out.push({ pts, score: qa * fill ** 4 * weight });
         }
         ap.delete();
+        if (n <= 4) break;
       }
       hull.delete();
     }
     cnt.delete();
   }
   cs.delete(); hier.delete();
-  return best && orderPts(best);
 }
 
 /* ---------- 透視校正(純 JS,不靠 OpenCV) ---------- */
