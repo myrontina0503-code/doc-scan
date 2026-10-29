@@ -7,51 +7,71 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="掃描文件">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#dde7f4">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#5b7cfa">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <style>
 :root{
-  --bg:#dde7f4; --card:#fff; --thumb:#c9d7ea; --ink:#1b2333; --sub:#667085; --line:#e3e8f0;
-  --pri:#1f6feb; --pri-ink:#fff; --soft:#e8f0fe; --danger:#d92d20; --stage:#111418;
+  --bg:#eef2fb; --card:#fff; --thumb:#dde5f6; --ink:#1a2140; --sub:#5f6b8a; --line:#e1e7f3;
+  --pri:#4263eb; --pri2:#5b7cfa; --pri-ink:#fff; --soft:#e7ecff; --accent:#f04852; --accent2:#ff6b74;
+  --danger:#e03131; --stage:#0e1220; --stage2:#1a2033; --shadow:0 4px 16px rgba(40,60,140,.10);
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0f1115; --card:#1a1d24; --thumb:#262b35; --ink:#e8ebf1; --sub:#9aa3b2; --line:#2a2f3a;
-    --pri:#4c8dff; --pri-ink:#fff; --soft:#1d2a44; --danger:#ff6b5e; --stage:#000;
+    --bg:#0f1320; --card:#1a2033; --thumb:#252c44; --ink:#e9ecf6; --sub:#9aa4c0; --line:#2a3250;
+    --pri:#5b7cfa; --pri2:#7b96ff; --soft:#222b4a; --accent:#ff5d66; --accent2:#ff7d85;
+    --danger:#ff6b6b; --stage:#080b14; --stage2:#151a2a; --shadow:0 4px 16px rgba(0,0,0,.35);
   }
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
-  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;font-size:16px}
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;font-size:18px}
 button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .hidden{display:none!important}
 .screen{position:fixed;inset:0;display:flex;flex-direction:column}
+svg.i{width:24px;height:24px;flex:none}
 
-/* Home */
-header{padding:calc(env(safe-area-inset-top) + 14px) 16px 10px;display:flex;align-items:center;gap:10px}
-header h1{font-size:22px;margin:0;flex:1}
-.ghost{padding:8px 12px;border-radius:10px;color:var(--sub);font-size:14px}
-.ghost:active{background:var(--line)}
-#grid{flex:1;overflow:auto;padding:4px 16px 120px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px;align-content:start}
-.thumb{position:relative;background:var(--thumb);border-radius:12px;padding:8px;box-shadow:0 1px 3px rgba(0,0,0,.08);aspect-ratio:3/4;display:flex;align-items:center;justify-content:center}
-.thumb img{max-width:100%;max-height:100%;border-radius:3px;box-shadow:0 1px 6px rgba(20,40,80,.25)}
-.thumb .no{position:absolute;left:6px;top:6px;background:var(--pri);color:#fff;font-size:12px;font-weight:600;border-radius:99px;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0 6px}
-.empty{grid-column:1/-1;text-align:center;color:var(--sub);padding:60px 20px;line-height:1.7}
-.empty .big{font-size:56px}
-.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);display:flex;gap:10px;background:linear-gradient(transparent,var(--bg) 30%)}
-.btn{flex:1;height:52px;border-radius:14px;background:var(--card);box-shadow:0 1px 3px rgba(0,0,0,.1);font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
-.btn.pri{background:var(--pri);color:var(--pri-ink)}
-.btn:disabled{opacity:.45}
-.btn:active{transform:scale(.98)}
+/* 首頁 */
+.hero{background:linear-gradient(135deg,var(--pri2),var(--pri));color:#fff;
+  padding:calc(env(safe-area-inset-top) + 16px) 20px 46px;border-radius:0 0 28px 28px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand img{width:46px;height:46px;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+.brand h1{font-size:26px;margin:0;letter-spacing:.5px}
+.brand .sub{font-size:15px;opacity:.85;margin-top:2px}
+.brand .grow{flex:1}
+.ghost{padding:8px 14px;border-radius:99px;font-size:15px;background:rgba(255,255,255,.18);color:#fff}
+.ghost:active{background:rgba(255,255,255,.3)}
+.tip{margin:-30px 16px 8px;padding:14px 16px;border-radius:18px;background:var(--card);font-size:16px;line-height:1.65;box-shadow:var(--shadow);display:flex;gap:12px}
+.tip .ic{flex:none;width:36px;height:36px;border-radius:10px;background:var(--soft);color:var(--pri);display:flex;align-items:center;justify-content:center}
+.tip b{color:var(--pri)}
+#cvStatus{font-size:14px;color:var(--sub);padding:2px 20px 4px}
+#grid{flex:1;overflow:auto;padding:10px 16px 130px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;align-content:start}
+.thumb{position:relative;background:var(--card);border-radius:18px;padding:10px 10px 0;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.thumb .pic{background:var(--thumb);border-radius:12px;aspect-ratio:3/4;display:flex;align-items:center;justify-content:center;padding:10px}
+.thumb img{max-width:100%;max-height:100%;border-radius:3px;box-shadow:0 2px 8px rgba(20,40,100,.25)}
+.thumb .cap{font-size:15px;color:var(--sub);text-align:center;padding:8px 0 10px}
+.thumb .no{position:absolute;left:16px;top:16px;background:var(--pri);color:#fff;font-size:14px;font-weight:700;border-radius:99px;min-width:26px;height:26px;display:flex;align-items:center;justify-content:center;padding:0 7px}
+.empty{grid-column:1/-1;text-align:center;color:var(--sub);padding:14px 6px}
+.empty img{width:120px;height:120px;border-radius:28px;box-shadow:var(--shadow)}
+.empty h2{color:var(--ink);font-size:22px;margin:16px 0 18px}
+.steps{display:flex;flex-direction:column;gap:10px;text-align:left}
+.step{display:flex;align-items:center;gap:14px;background:var(--card);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);font-size:17px;color:var(--ink)}
+.step .n{flex:none;width:34px;height:34px;border-radius:50%;background:var(--soft);color:var(--pri);font-weight:800;display:flex;align-items:center;justify-content:center}
+.bar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(env(safe-area-inset-bottom) + 12px);display:flex;gap:10px;background:var(--card);box-shadow:0 -4px 18px rgba(40,60,140,.10);border-radius:24px 24px 0 0}
+.btn{flex:1;height:58px;border-radius:16px;background:var(--soft);color:var(--pri);font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn.pri{background:linear-gradient(135deg,var(--pri2),var(--pri));color:#fff;box-shadow:0 4px 12px rgba(66,99,235,.35)}
+.btn.hot{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;box-shadow:0 4px 12px rgba(240,72,82,.35)}
+.btn:disabled{opacity:.4;box-shadow:none}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 6px;margin-left:5px;border-radius:99px;background:#fff;color:var(--accent);font-size:14px;font-weight:800;vertical-align:2px}
+.btn:active{transform:scale(.97)}
 
-/* Crop + page editor (dark stage) */
+/* 裁切、單頁編輯(深色) */
 .dark{background:var(--stage);color:#fff}
-.dark .top{padding:calc(env(safe-area-inset-top) + 10px) 12px 8px;display:flex;align-items:center;gap:8px}
-.dark .top .t{flex:1;text-align:center;font-weight:600}
-.dark .tbtn{padding:8px 12px;border-radius:10px;color:#cfd6e4;font-size:15px}
-.dark .tbtn.go{color:#fff;background:var(--pri);font-weight:600}
+.dark .top{padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;display:flex;align-items:center;gap:8px;background:var(--stage2)}
+.dark .top .t{flex:1;text-align:center;font-weight:700;font-size:18px}
+.dark .tbtn{padding:10px 14px;border-radius:12px;color:#c9d2ea;font-size:17px}
+.dark .tbtn.go{color:#fff;background:linear-gradient(135deg,var(--pri2),var(--pri));font-weight:700;padding:10px 18px}
 .dark .tbtn:active{background:#ffffff22}
 .stageWrap{flex:1;position:relative;overflow:hidden;touch-action:none}
 #stage{position:absolute}
@@ -59,56 +79,60 @@ header h1{font-size:22px;margin:0;flex:1}
 #stage svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .handle{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--pri),0 1px 6px #000a;pointer-events:none}
 .ehandle{position:absolute;width:36px;height:10px;margin:-5px 0 0 -18px;border-radius:5px;background:#fff;box-shadow:0 0 0 2px var(--pri),0 1px 4px #0009;pointer-events:none}
-.handle.on{border-color:#ffd54a}.ehandle.on{background:#ffd54a}
+.handle.on{border-color:#ffd43b}.ehandle.on{background:#ffd43b}
 #loupe{position:absolute;width:150px;height:150px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 12px #000c;pointer-events:none;background:#000;z-index:2}
-.tools{display:flex;justify-content:center;gap:6px;padding:10px 12px calc(env(safe-area-inset-bottom) + 12px);flex-wrap:wrap}
-.tool{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;color:#cfd6e4;padding:6px 10px;border-radius:10px;min-width:58px}
-.tool svg{width:24px;height:24px}
+.tools{display:flex;justify-content:center;gap:2px;padding:10px 6px calc(env(safe-area-inset-bottom) + 12px);flex-wrap:wrap;background:var(--stage2)}
+.tool{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:14px;color:#c9d2ea;padding:8px 2px;border-radius:12px;min-width:58px;white-space:nowrap}
+.tool svg{width:28px;height:28px}
 .tool:active{background:#ffffff22}
-.tool.danger{color:#ff8a80}
-.chips{display:flex;gap:8px;justify-content:center;padding:8px 12px 0;flex-wrap:wrap}
-.chip{padding:8px 14px;border-radius:99px;background:#ffffff1a;color:#e6eaf2;font-size:14px}
-.chip.on{background:#fff;color:#111}
-.preview{flex:1;display:flex;align-items:center;justify-content:center;padding:10px;overflow:hidden}
-.preview img{max-width:100%;max-height:100%;box-shadow:0 2px 16px #0009}
-.hint{text-align:center;color:#9aa3b2;font-size:13px;padding:0 16px}
+.tool.danger{color:#ff8787}
+.chips{display:flex;gap:8px;justify-content:center;padding:12px 12px 10px;flex-wrap:wrap;background:var(--stage2)}
+.chip{padding:10px 18px;border-radius:99px;background:#ffffff14;color:#e3e8f6;font-size:17px}
+.chip.on{background:linear-gradient(135deg,var(--pri2),var(--pri));color:#fff;font-weight:700}
+.preview{flex:1;display:flex;align-items:center;justify-content:center;padding:14px;overflow:hidden}
+.preview img{max-width:100%;max-height:100%;box-shadow:0 4px 24px #000a;border-radius:2px}
+.hint{text-align:center;color:#a8b2cc;font-size:15px;padding:10px 16px 0;background:var(--stage2)}
 
-/* Sheet */
-.mask{position:fixed;inset:0;background:#0007;display:flex;align-items:flex-end;z-index:20}
-.sheet{width:100%;background:var(--card);border-radius:18px 18px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom) + 16px);max-height:90vh;overflow:auto}
-.sheet h2{margin:0 0 14px;font-size:18px}
-.lbl{font-size:13px;color:var(--sub);margin:14px 0 6px}
-.seg{display:flex;background:var(--bg);border-radius:12px;padding:3px}
-.seg button{flex:1;padding:10px 4px;border-radius:9px;font-size:15px;color:var(--sub)}
-.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
-input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+/* 匯出面板 */
+.mask{position:fixed;inset:0;background:rgba(10,16,40,.5);display:flex;align-items:flex-end;z-index:20}
+.sheet{width:100%;background:var(--card);border-radius:26px 26px 0 0;padding:10px 18px calc(env(safe-area-inset-bottom) + 18px);max-height:92vh;overflow:auto}
+.sheet .grab{width:44px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+.sheet h2{margin:0 0 6px;font-size:22px}
+.lbl{font-size:15px;color:var(--sub);margin:16px 0 8px;font-weight:600}
+.seg{display:flex;background:var(--bg);border-radius:14px;padding:4px}
+.seg button{flex:1;padding:12px 4px;border-radius:11px;font-size:17px;color:var(--sub)}
+.seg button.on{background:var(--card);color:var(--pri);font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+input[type=text]{width:100%;font:inherit;font-size:18px;padding:14px;border-radius:14px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+input[type=text]:focus{outline:none;border-color:var(--pri)}
 .row{display:flex;gap:10px;margin-top:18px}
-.info{font-size:13px;color:var(--sub);margin-top:12px;line-height:1.6}
+.info{font-size:15px;color:var(--sub);margin-top:12px;line-height:1.65}
+.sheet .note{background:var(--soft);border-radius:14px;padding:12px 14px;color:var(--ink)}
 
-#busy{position:fixed;inset:0;background:#0008;z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;color:#fff}
-.spin{width:44px;height:44px;border-radius:50%;border:4px solid #fff4;border-top-color:#fff;animation:sp 0.8s linear infinite}
+#busy{position:fixed;inset:0;background:rgba(10,16,40,.6);z-index:50;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;color:#fff;font-size:18px}
+.spin{width:48px;height:48px;border-radius:50%;border:5px solid #fff4;border-top-color:#fff;animation:sp 0.8s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
-#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translateX(-50%);background:#222c;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:60;max-width:88vw;text-align:center;transition:opacity .3s}
-.tip{margin:0 16px 10px;padding:10px 12px;border-radius:12px;background:var(--card);font-size:13px;line-height:1.6}
-.tip b{color:var(--pri)}
-#cvStatus{font-size:12px;color:var(--sub);padding:0 16px 6px}
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 76px);transform:translateX(-50%);background:rgba(26,33,64,.92);color:#fff;padding:12px 18px;border-radius:14px;font-size:16px;z-index:60;max-width:88vw;text-align:center;transition:opacity .3s;pointer-events:none}
 </style>
 </head>
 <body>
 
 <!-- 首頁 -->
 <section id="home" class="screen">
-  <header>
-    <h1>掃描文件</h1>
-    <button class="ghost" id="clearBtn">清除全部</button>
+  <header class="hero">
+    <div class="brand">
+      <img src="icon-180.png" alt="">
+      <div class="grow"><h1>掃描文件</h1><div class="sub">拍照・裁切・轉 PDF</div></div>
+      <button class="ghost" id="clearBtn">清除</button>
+    </div>
   </header>
-  <div class="tip">📌 <b>拍照小提醒:</b>文件和背景的顏色要差很多才好自動裁切,例如<b>白紙放在深色桌面</b>上拍;四個角都要拍進畫面裡,紙盡量放平。</div>
+  <div class="tip"><div class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></svg></div>
+    <div><b>拍照小提醒:</b>文件和背景的顏色要差很多才好自動裁切,例如<b>白紙放在深色桌面</b>上拍;四個角都要拍進畫面,紙盡量放平。</div></div>
   <div id="cvStatus">加強版找框引擎下載中…(不影響使用,可以直接拍)</div>
   <div id="grid"></div>
   <div class="bar">
-    <button class="btn" id="camBtn">📷 拍照</button>
-    <button class="btn" id="albumBtn">🖼 相簿</button>
-    <button class="btn pri" id="exportBtn" disabled>分享</button>
+    <button class="btn" id="albumBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>相簿</button>
+    <button class="btn pri" id="camBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>拍照</button>
+    <button class="btn hot" id="exportBtn" disabled><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></svg><span id="exportTxt">分享</span></button>
   </div>
   <input type="file" id="camInput" accept="image/*" capture="environment" hidden>
   <input type="file" id="albumInput" accept="image/*" multiple hidden>
@@ -124,7 +148,7 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
   <div class="stageWrap" id="stageWrap">
     <div id="stage">
       <canvas id="stageCv"></canvas>
-      <svg id="poly"><polygon fill="rgba(76,141,255,.18)" stroke="#4c8dff" stroke-width="2.5"/></svg>
+      <svg id="poly"><polygon fill="rgba(91,124,250,.18)" stroke="#5b7cfa" stroke-width="2.5"/></svg>
       <div class="handle" data-i="0"></div><div class="handle" data-i="1"></div>
       <div class="handle" data-i="2"></div><div class="handle" data-i="3"></div>
       <div class="ehandle" data-e="0"></div><div class="ehandle" data-e="1"></div>
@@ -166,6 +190,7 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
 <!-- 匯出 -->
 <div class="mask hidden" id="exportMask">
   <div class="sheet">
+    <div class="grab"></div>
     <h2>分享 / 儲存</h2>
     <div class="lbl">檔名</div>
     <input type="text" id="fname">
@@ -177,10 +202,10 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
     </div>
     <div class="info" id="expInfo">準備中…</div>
     <div class="row">
-      <button class="btn" id="saveBtn" disabled>💾 存到手機</button>
+      <button class="btn" id="saveBtn" disabled>存到手機</button>
       <button class="btn pri" id="shareBtn" disabled>傳 LINE / 寄信</button>
     </div>
-    <div class="info" id="shareTip"></div>
+    <div class="info note" id="shareTip"></div>
     <div class="row"><button class="btn" id="expClose">關閉</button></div>
   </div>
 </div>
@@ -190,7 +215,7 @@ input[type=text]{width:100%;font:inherit;padding:12px;border-radius:12px;border:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-const BUILD = '20261029g';
+const BUILD = '20261029h';
 const $ = s => document.querySelector(s);
 const show = (el, on = true) => el.classList.toggle('hidden', !on);
 const nextFrame = () => new Promise(r => { requestAnimationFrame(() => setTimeout(r, 0)); setTimeout(r, 80); });
@@ -608,12 +633,15 @@ async function renderPage(p) {
 function renderGrid() {
   const g = $('#grid');
   if (!pages.length) {
-    g.innerHTML = `<div class="empty"><div class="big">📄</div>按下方「拍照」對著文件拍<br>會自動找到文件邊緣、把多的邊裁掉<br>可以拍很多頁,再合成一份 PDF 傳出去</div>`;
+    g.innerHTML = `<div class="empty"><img src="icon-512.png" alt=""><h2>三步驟把紙本變 PDF</h2><div class="steps">
+      <div class="step"><span class="n">1</span>按「拍照」對著文件拍,或從相簿選</div>
+      <div class="step"><span class="n">2</span>自動找邊框、裁切、去陰影</div>
+      <div class="step"><span class="n">3</span>按「分享」轉成 PDF 傳 LINE 或寄信</div></div></div>`;
   } else {
-    g.innerHTML = pages.map((p, i) => `<button class="thumb" data-i="${i}"><span class="no">${i + 1}</span><img src="${p.thumb}" alt="第 ${i + 1} 頁"></button>`).join('');
+    g.innerHTML = pages.map((p, i) => `<button class="thumb" data-i="${i}"><span class="no">${i + 1}</span><div class="pic"><img src="${p.thumb}" alt=""></div><div class="cap">第 ${i + 1} 頁</div></button>`).join('');
   }
   $('#exportBtn').disabled = !pages.length;
-  $('#exportBtn').textContent = pages.length ? `分享 (${pages.length} 頁)` : '分享';
+  $('#exportTxt').innerHTML = pages.length ? `分享<span class="badge">${pages.length}</span>` : '分享';
   show($('#clearBtn'), pages.length > 0);
 }
 $('#grid').addEventListener('click', e => {
